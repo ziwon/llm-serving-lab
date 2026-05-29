@@ -1,15 +1,13 @@
 # LLM Serving Lab
 
-**2026 OSS LLM Serving Landscape** — A reference project for building, comparing, and benchmarking modern LLM serving frameworks directly, then defining production architecture criteria from an operator's perspective.
-
-> The real value of this repository is not the benchmark numbers themselves. It is being able to explain, from an operator's perspective, **"why some companies choose vLLM, others choose TensorRT-LLM, and where Ray fits."**
+A Docker Compose lab for benchmarking and observing open-source LLM serving engines on real GPU hardware.
 
 ## Comparison Targets
 
 | Category | Framework |
 |---|---|
 | Core Serving Engine | vLLM, SGLang, HuggingFace TGI, TensorRT-LLM |
-| Serving Platform | Ray Serve (Phase 4) |
+| Optional Serving Platform | Ray Serve |
 
 ## Hardware Profiles
 
@@ -53,11 +51,13 @@ llm-serving-lab/
 | 1 | Single GPU Baseline | `benchmark/*.md` (4 engines) |
 | 2 | Advanced Features | Feature Matrix validation |
 | 3 | Multi GPU Benchmark | TP 1/2/4 scaling analysis |
-| 4 | Production Serving (Ray) | Autoscaling / Routing / Canary |
+| 4 | Optional Production Serving Layer | Ray Serve routing / autoscaling / canary in front of an engine |
 | 5 | Kubernetes | Out of scope for this repository; Compose-focused |
 | 6 | Production Report | `docs/README.md` |
 
 > This scaffolding is **Docker Compose-focused**. Phase 5 (K8s/Helm/ArgoCD) is intentionally recommended as a separate repository.
+
+Ray Serve is optional. Use it when the goal is to evaluate the production layer above an engine; skip it when the goal is only engine-level benchmarking.
 
 ## Quick Start
 

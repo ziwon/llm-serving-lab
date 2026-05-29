@@ -1,0 +1,43 @@
+services:
+  # TensorRT-LLM requires an engine build step first.
+  # 1) Create a per-model engine with trtllm-build  2) Serve it with trtllm-serve using the OpenAI-compatible API
+  # Builds are heavy and GPU architecture (SM)-dependent, so follow the README procedure first.
+  trtllm:
+    image: ${TENSORRT_LLM_IMAGE:-nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc7}
+    container_name: trtllm
+    runtime: nvidia
+    ports:
+      - "${SERVED_PORT:-8000}:8000"
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
+    volumes:
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+      - ./engines-out:/engines       # trtllm-build outputs
+    ipc: host
+    # Serve an HF checkpoint directly with trtllm-serve (simple path)
+    command: >
+      trtllm-serve ${MODEL_ID:-Qwen/Qwen3-8B-FP8}
+      --tp_size ${TENSOR_PARALLEL_SIZE:-1}
+      --max_seq_len ${MAX_MODEL_LEN:-8192}
+      --host 0.0.0.0
+      --port 8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 600s
+
+networks:
+  default:
+    name: llm-serving-lab
+    external: true

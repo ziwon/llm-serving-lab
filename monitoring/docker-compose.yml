@@ -1,0 +1,42 @@
+services:
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.11.0}
+    container_name: prometheus
+    ports: ["9090:9090"]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [default]
+
+  dcgm-exporter:
+    image: ${DCGM_EXPORTER_IMAGE:-nvidia/dcgm-exporter:4.4.1-4.6.0-distroless}
+    container_name: dcgm-exporter
+    runtime: nvidia
+    ports: ["9400:9400"]
+    cap_add: ["SYS_ADMIN"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility]
+    networks: [default]
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:12.3.6-security-04-ubuntu}
+    container_name: grafana
+    ports: ["3000:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    networks: [default]
+
+volumes:
+  grafana-data:
+
+networks:
+  default:
+    name: llm-serving-lab
+    external: true

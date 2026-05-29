@@ -1,0 +1,40 @@
+services:
+  sglang:
+    image: ${SGLANG_IMAGE:-lmsysorg/sglang:nightly-dev-cu13-20260522-c9153da5}
+    container_name: sglang
+    runtime: nvidia
+    ports:
+      - "${SERVED_PORT:-8000}:30000"
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
+    volumes:
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+    ipc: host
+    command: >
+      python3 -m sglang.launch_server
+      --model-path ${MODEL_ID:-Qwen/Qwen3-8B-FP8}
+      --tp ${TENSOR_PARALLEL_SIZE:-1}
+      --context-length ${MAX_MODEL_LEN:-8192}
+      --mem-fraction-static ${GPU_MEMORY_UTILIZATION:-0.90}
+      --host 0.0.0.0
+      --port 30000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:30000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+networks:
+  default:
+    name: llm-serving-lab
+    external: true

@@ -1,0 +1,44 @@
+services:
+  ray-head:
+    image: ${RAY_IMAGE:-rayproject/ray:2.55.1-py312-gpu}
+    container_name: ray-head
+    ports:
+      - "6379:6379"
+      - "8265:8265"
+      - "8001:8000"
+    environment:
+      - RAY_BACKEND_URL=${RAY_BACKEND_URL:-http://vllm:8000}
+    volumes:
+      - ./serve_app.py:/workspace/serve_app.py:ro
+    command: >
+      bash -lc "ray start --head --dashboard-host=0.0.0.0 --port=6379
+      && cd /workspace
+      && serve run serve_app:app --host 0.0.0.0 --port 8000"
+    shm_size: "2gb"
+    networks: [default]
+
+  ray-worker:
+    image: ${RAY_IMAGE:-rayproject/ray:2.55.1-py312-gpu}
+    container_name: ray-worker
+    runtime: nvidia
+    depends_on:
+      - ray-head
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
+    command: >
+      bash -lc "ray start --address=ray-head:6379 --block"
+    shm_size: "2gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks: [default]
+
+networks:
+  default:
+    name: llm-serving-lab
+    external: true

@@ -1,0 +1,48 @@
+services:
+  vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.21.0-cu129-ubuntu2404}
+    container_name: vllm
+    runtime: nvidia
+    ports:
+      - "${SERVED_PORT:-8000}:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
+      - OTEL_SERVICE_NAME=${VLLM_OTEL_SERVICE_NAME:-vllm-server}
+      - OTEL_EXPORTER_OTLP_TRACES_INSECURE=${VLLM_OTEL_INSECURE:-true}
+      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=${VLLM_OTEL_PROTOCOL:-grpc}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+    ipc: host
+    command: >
+      ${MODEL_ID:-Qwen/Qwen3-8B-FP8}
+      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE:-1}
+      --max-model-len ${MAX_MODEL_LEN:-8192}
+      --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.90}
+      --max-num-seqs ${MAX_NUM_SEQS:-64}
+      ${VLLM_QUANTIZATION_ARGS:-}
+      ${VLLM_OTEL_ARGS:-}
+      ${VLLM_EXTRA_ARGS:-}
+      --enable-prefix-caching
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+networks:
+  default:
+    name: llm-serving-lab
+    external: true

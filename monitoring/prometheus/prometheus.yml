@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: dcgm
+    static_configs:
+      - targets: ["dcgm-exporter:9400"]
+
+  - job_name: vllm
+    static_configs:
+      - targets: ["vllm:8000"]
+    metrics_path: /metrics
+
+  - job_name: sglang
+    static_configs:
+      - targets: ["sglang:30000"]
+    metrics_path: /metrics
+
+  - job_name: tgi
+    static_configs:
+      - targets: ["tgi:80"]
+    metrics_path: /metrics
+
+  - job_name: tensorrt-llm
+    static_configs:
+      - targets: ["trtllm:8000"]
+    metrics_path: /metrics

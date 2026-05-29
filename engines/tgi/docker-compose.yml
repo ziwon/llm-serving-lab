@@ -1,0 +1,38 @@
+services:
+  tgi:
+    image: ${TGI_IMAGE:-ghcr.io/huggingface/text-generation-inference:3.3.5}
+    container_name: tgi
+    runtime: nvidia
+    ports:
+      - "${SERVED_PORT:-8000}:80"
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
+    volumes:
+      - ${HF_HOME:-~/.cache/huggingface}:/data
+    ipc: host
+    command: >
+      --model-id ${MODEL_ID:-Qwen/Qwen3-8B-FP8}
+      --num-shard ${TENSOR_PARALLEL_SIZE:-1}
+      --max-total-tokens ${MAX_MODEL_LEN:-8192}
+      --max-input-tokens ${MAX_INPUT_TOKENS:-7168}
+      --cuda-memory-fraction ${GPU_MEMORY_UTILIZATION:-0.90}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+networks:
+  default:
+    name: llm-serving-lab
+    external: true

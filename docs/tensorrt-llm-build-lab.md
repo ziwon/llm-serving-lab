@@ -1,5 +1,28 @@
 # TensorRT-LLM Conversion and Build Lab
 
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Prerequisites](#prerequisites)
+- [Workflow Overview](#workflow-overview)
+- [Why Qwen3-4B FP16 for Homelab](#why-qwen3-4b-fp16-for-homelab)
+- [Homelab Qwen3-4B Build](#homelab-qwen3-4b-build)
+- [Build Arguments](#build-arguments)
+- [Build Option Deep Dive](#build-option-deep-dive)
+- [Build Profile Matrix](#build-profile-matrix)
+- [Checkpoint Config Interpretation](#checkpoint-config-interpretation)
+- [Artifacts](#artifacts)
+- [VRAM Tuning](#vram-tuning)
+- [Benchmarking Strategy](#benchmarking-strategy)
+- [Known Limitations](#known-limitations)
+- [Custom Qwen Models](#custom-qwen-models)
+- [Datacenter / Multi-GPU Notes](#datacenter--multi-gpu-notes)
+- [Troubleshooting](#troubleshooting)
+- [Debugging and Inspection Toolkit](#debugging-and-inspection-toolkit)
+- [Appendix A. VRAM Budgeting for TensorRT-LLM Engines](#appendix-a-vram-budgeting-for-tensorrt-llm-engines)
+- [Appendix B. Quantization Paths to Explore](#appendix-b-quantization-paths-to-explore)
+- [NVIDIA References](#nvidia-references)
+
 ## Purpose
 
 This lab documents the real TensorRT-LLM path for LLM serving:
@@ -145,6 +168,54 @@ just trtllm-build-checkpoint qwen3-4b-fp16-tp1 qwen3-4b-fp16-tp1-4096 4096 3584 
 | max batch size | `16` | maximum runtime batch |
 | TP size | `1` | tensor parallel size |
 
+## Build Option Deep Dive
+
+TensorRT-LLM build options define the serving envelope. Changing them requires rebuilding the engine, then serving with runtime limits that do not exceed the built profile.
+
+| Option | Default lab value | Why it matters |
+|---|---:|---|
+| `--max_batch_size` | `16` | Maximum number of requests the engine can schedule. Higher values can improve throughput but increase memory pressure. |
+| `--max_input_len` | `3584` | Maximum prompt length for one request. Keep room below `max_seq_len` for generated tokens. |
+| `--max_seq_len` | `4096` | Maximum total length of one request, including prompt and output tokens. |
+| `--max_num_tokens` | `4096` | Maximum batched input tokens after input padding is removed. This is the core token budget for inflight batching. |
+| `--opt_num_tokens` | not set | Optional optimization target for expected batched token count. Set it near the real workload when doing deeper tuning. |
+| `--kv_cache_type paged` | enabled | Uses paged KV cache for transformer models. This is the current lab default. |
+| `--remove_input_padding` | engine default enabled | Removes padding before batching. The built engine config records this as `plugin_config.remove_input_padding: true`. |
+| `--profiling_verbosity detailed` | not set | Useful when inspecting TensorRT tactic choices and kernel parameters. |
+| `--monitor_memory` | enabled | Tracks memory during engine build. This is the current lab default. |
+| `--dry_run` | not set | Runs build validation without creating the final engine. Useful before expensive profile experiments. |
+| `--visualize_network <dir>` | not set | Exports the TensorRT network as ONNX before engine build for debugging. This is for inspection, not the normal TensorRT-LLM conversion path. |
+| `--log_level verbose` | not set | Useful when diagnosing converter or builder behavior. |
+
+The current `just trtllm-build-checkpoint` recipe exposes the main profile knobs as positional arguments:
+
+```bash
+just trtllm-build-checkpoint <checkpoint> <engine> <max_seq_len> <max_input_len> <max_num_tokens> <max_batch_size> <workers>
+```
+
+For deeper experiments, run `trtllm-build` directly in the TensorRT-LLM container or extend the recipe with the debug or profiling option being tested.
+
+## Build Profile Matrix
+
+Use multiple engine profiles when comparing TensorRT-LLM trade-offs. The important mental model is that TensorRT-LLM does not have one universal engine for every workload; each engine is built for a specific context, batch, and token budget.
+
+| Profile | Example engine name | max seq len | max input len | max num tokens | max batch size | Purpose |
+|---|---|---:|---:|---:|---:|---|
+| latency | `qwen3-4b-fp16-tp1-2048-b4` | `2048` | `1792` | `2048` | `4` | Lower memory pressure and simpler low-latency testing. |
+| balanced | `qwen3-4b-fp16-tp1-4096-b16` | `4096` | `3584` | `4096` | `16` | Default homelab profile used by this lab. |
+| long-context | `qwen3-4b-fp16-tp1-8192-b4` | `8192` | `7680` | `8192` | `4` | Longer prompts with lower concurrent batch. |
+| throughput | `qwen3-4b-fp16-tp1-4096-b32` | `4096` | `2048` | `8192` | `32` | Higher batching experiments if VRAM allows. |
+
+Start with the balanced profile, then change one axis at a time. If a profile fails, inspect the build log and reduce `max_batch_size`, then `max_num_tokens`, then `max_seq_len`.
+
+When serving a custom profile, runtime limits must stay within the engine build limits. The default `just trtllm-engine-up` helper currently serves with the default lab limits:
+
+```bash
+--max_batch_size 16 --max_num_tokens 4096 --max_seq_len 4096
+```
+
+If you build a smaller profile such as `2048-b4`, update the serve command or `TENSORRT_LLM_EXTRA_ARGS` to match that engine. Otherwise `trtllm-serve` can fail during executor startup because the requested runtime envelope is larger than the engine profile.
+
 ## Checkpoint Config Interpretation
 
 The converted checkpoint config at:
@@ -267,6 +338,19 @@ If build or serve hits OOM, reduce limits in this order:
 
 If conversion completed but engine build failed, rerun the build command from [Build Arguments](#build-arguments). The recipe removes the target engine directory before rebuilding, so a partial `rank0.engine` from a failed serialization is not reused.
 
+## Benchmarking Strategy
+
+This repository benchmarks TensorRT-LLM through the OpenAI-compatible HTTP endpoint so the result can be compared with vLLM, SGLang, and TGI under the same client path.
+
+| Benchmark path | Purpose |
+|---|---|
+| repo HTTP benchmark | Cross-engine comparison through the same API surface. |
+| `trtllm-bench` | Native TensorRT-LLM engine measurement without this repo's HTTP client wrapper. |
+| DCGM / Prometheus | GPU power, utilization, memory, and energy observation. |
+| feature validation | API compatibility checks such as streaming, models endpoint, JSON mode, and tool calling. |
+
+Use the repo benchmark for apples-to-apples serving comparisons. Use native TensorRT-LLM benchmarks when tuning a single TensorRT-LLM engine and trying to isolate engine-level performance from HTTP serving behavior.
+
 ## Known Limitations
 
 - TensorRT-LLM does not use ONNX in this flow; there is no `.onnx` model to view with Netron.
@@ -305,6 +389,85 @@ Build on the target GPU architecture whenever possible. Engines built for one GP
 - If startup fails with runtime limit errors, check that `max_batch_size`, `max_num_tokens`, and `max_seq_len` do not exceed the engine build limits.
 - If an engine build fails partway through, rerun the build recipe instead of reusing a partial engine directory.
 
+## Debugging and Inspection Toolkit
+
+Common host-side checks:
+
+```bash
+nvidia-smi
+watch -n 1 nvidia-smi
+nvidia-smi dmon
+jq . /data/LLM/artifacts/llm-serving-lab/tensorrt-llm/checkpoints/qwen3-4b-fp16-tp1/config.json
+jq . /data/LLM/artifacts/llm-serving-lab/tensorrt-llm/engines-out/qwen3-4b-fp16-tp1-4096/config.json
+grep -iE "error|oom|warning|memory" /data/LLM/artifacts/llm-serving-lab/tensorrt-llm/results/*.log
+```
+
+Useful builder-side options for focused debugging:
+
+| Option | Use |
+|---|---|
+| `--dry_run` | Validate build configuration before the expensive engine build. |
+| `--monitor_memory` | Track memory during build. |
+| `--profiling_verbosity detailed` | Inspect tactic and kernel-level details. |
+| `--visualize_network <dir>` | Export a pre-engine TensorRT network view for debugging. |
+| `--log_level verbose` | Increase builder log detail. |
+
+These options are not all exposed by the default `just` recipes. Add them temporarily to the recipe or run `trtllm-build` directly in the TensorRT-LLM container when debugging a specific profile.
+
+## Appendix A. VRAM Budgeting for TensorRT-LLM Engines
+
+A practical TensorRT-LLM memory budget is:
+
+```text
+VRAM ~= model weights + KV cache + activation/workspace + runtime overhead
+```
+
+For this FP16 Qwen3-4B checkpoint, model weights alone are roughly in the 8GB range before runtime overhead. KV cache then grows with resident token count, layer count, KV head count, head size, and dtype.
+
+Approximate KV cache bytes per resident token for this checkpoint:
+
+```text
+2 * num_hidden_layers * num_key_value_heads * head_size * bytes_per_element
+= 2 * 36 * 8 * 128 * 2
+= 147456 bytes per token
+~= 144 KiB per token
+```
+
+The `2` accounts for K and V cache tensors. For one request with 4096 resident tokens, the rough KV cache footprint is about:
+
+```text
+4096 * 144 KiB ~= 576 MiB
+```
+
+That is not the full worst-case batch footprint. Total KV pressure scales with tokens resident across the active batch:
+
+```text
+active_resident_tokens_across_batch * 144 KiB
+```
+
+For example, a theoretical full `max_batch_size=16` batch where every request reaches 4096 resident tokens would be much larger:
+
+```text
+16 * 4096 * 144 KiB ~= 9 GiB
+```
+
+Real serving usually lands below that worst case, but the build profile must still reserve for the envelope it can schedule. This is only a planning estimate; TensorRT workspace, CUDA graphs, plugins, allocator behavior, runtime scheduling, and fragmentation add overhead. On a 16GB GPU, treat 4K context as a conservative baseline and increase context or batch only after checking real memory with `nvidia-smi`, DCGM metrics, and build logs.
+
+## Appendix B. Quantization Paths to Explore
+
+The default lab is FP16 because it is the simplest reproducible baseline. Quantization is the next set of experiments when trying to fit larger models, longer context, or higher throughput.
+
+| Path | Purpose |
+|---|---|
+| FP16 | Baseline path with minimal conversion complexity. |
+| BF16 | Datacenter baseline on GPUs where BF16 is the preferred format. |
+| FP8 | Hopper and Blackwell performance-oriented path when model support and calibration path are available. |
+| INT8 / SmoothQuant | Memory and bandwidth reduction experiments. |
+| INT4 AWQ / GPTQ | Aggressive weight compression, often relevant for consumer GPU experiments. |
+| KV cache quantization | Reduces long-context KV cache pressure when supported by the model and build path. |
+
+Keep quantized experiments separate from the FP16 baseline. Use distinct checkpoint and engine names so benchmark results remain attributable to the exact build profile.
+
 ## NVIDIA References
 
 - [TensorRT-LLM documentation](https://docs.nvidia.com/tensorrt-llm/)
@@ -313,4 +476,6 @@ Build on the target GPU architecture whenever possible. Engines built for one GP
 - [TensorRT-LLM checkpoint format](https://nvidia.github.io/TensorRT-LLM/architecture/checkpoint.html)
 - [`trtllm-build` command](https://nvidia.github.io/TensorRT-LLM/commands/trtllm-build.html)
 - [`trtllm-serve` command](https://nvidia.github.io/TensorRT-LLM/commands/trtllm-serve/trtllm-serve.html)
+- [TensorRT-LLM quantization](https://nvidia.github.io/TensorRT-LLM/features/quantization.html)
+- [TensorRT-LLM benchmarking](https://nvidia.github.io/TensorRT-LLM/performance/perf-benchmarking.html)
 - [Official TensorRT-LLM Qwen example](https://github.com/NVIDIA/TensorRT-LLM/tree/main/examples/models/core/qwen)

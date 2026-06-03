@@ -107,11 +107,8 @@ just summarize
 
 Benchmark tooling is managed with `uv` from `scripts/bench/pyproject.toml`. Run `just bench-sync` if you want to pre-create the local uv environment before the first benchmark.
 
-For explicit TensorRT-LLM checkpoint conversion and engine builds, use:
-
-```bash
-docs/tensorrt-llm-build-lab.md
-```
+For explicit TensorRT-LLM checkpoint conversion and engine builds, see
+[TensorRT-LLM Conversion and Build Lab](docs/tensorrt-llm-build-lab.md).
 
 For LLM/application tracing, OpenLIT can be used alongside the default GPU metrics stack:
 

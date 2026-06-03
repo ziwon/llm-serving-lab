@@ -1,16 +1,38 @@
 # TensorRT-LLM Conversion and Build Lab
 
-This lab covers the real TensorRT-LLM path for LLMs:
+## Purpose
+
+This lab documents the real TensorRT-LLM path for LLM serving:
 
 ```text
 Hugging Face checkpoint -> TensorRT-LLM checkpoint -> TensorRT engine -> trtllm-serve
 ```
 
-This is different from `docs/tensorrt-onnx-lab.md`, which uses a generic ONNX model and `trtexec`.
-
-## Why This Exists
+This is separate from `docs/tensorrt-onnx-lab.md`, which covers generic ONNX import with `trtexec`.
 
 TensorRT-LLM engine artifacts are hardware-specific. Build on the target GPU architecture when possible, especially on Blackwell consumer GPUs such as RTX 5080 (`sm_120`).
+
+## Prerequisites
+
+- NVIDIA GPU with a recent driver and CUDA-compatible container runtime.
+- Docker and NVIDIA Container Toolkit configured.
+- Repository profile loaded from the repository root:
+
+```bash
+source configs/profiles/homelab.env
+```
+
+- Hugging Face cache rooted at:
+
+```bash
+HF_HOME=/data/LLM/models/hugging-face
+```
+
+- TensorRT-LLM image from the active profile:
+
+```bash
+TENSORRT_LLM_IMAGE=nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc7
+```
 
 The pinned TensorRT-LLM image used by this repo includes the Qwen conversion script at:
 
@@ -18,7 +40,42 @@ The pinned TensorRT-LLM image used by this repo includes the Qwen conversion scr
 /app/tensorrt_llm/examples/models/core/qwen/convert_checkpoint.py
 ```
 
-The flow is based on NVIDIA's standard `convert_checkpoint.py` + `trtllm-build` workflow.
+## Workflow Overview
+
+The workflow is based on NVIDIA's `convert_checkpoint.py` + `trtllm-build` pattern:
+
+1. Download or locate the Hugging Face model snapshot.
+2. Convert the HF checkpoint into a TensorRT-LLM checkpoint.
+3. Build a TensorRT-LLM engine from that checkpoint.
+4. Serve the built engine with `trtllm-serve --backend tensorrt`.
+5. Benchmark the OpenAI-compatible endpoint.
+
+Useful NVIDIA references:
+
+- [TensorRT-LLM documentation](https://docs.nvidia.com/tensorrt-llm/)
+- [TensorRT-LLM latest docs](https://nvidia.github.io/TensorRT-LLM/latest/index.html)
+- [TensorRT-LLM build workflow](https://nvidia.github.io/TensorRT-LLM/architecture/workflow.html)
+- [TensorRT-LLM checkpoint format](https://nvidia.github.io/TensorRT-LLM/architecture/checkpoint.html)
+- [`trtllm-build` command](https://nvidia.github.io/TensorRT-LLM/commands/trtllm-build.html)
+- [`trtllm-serve` command](https://nvidia.github.io/TensorRT-LLM/commands/trtllm-serve/trtllm-serve.html)
+- [Official TensorRT-LLM Qwen example](https://github.com/NVIDIA/TensorRT-LLM/tree/main/examples/models/core/qwen)
+
+## Why Qwen3-4B FP16 for Homelab
+
+The default homelab GPU target is RTX 5080 16GB. The comparable `Qwen/Qwen3-8B-FP8` TensorRT-LLM serving path did not reliably fit in this environment, so this lab uses `Qwen/Qwen3-4B` as the practical TensorRT-LLM build target.
+
+The homelab recipe is intentionally conservative:
+
+| Setting | Value |
+|---|---:|
+| Model | `Qwen/Qwen3-4B` |
+| Checkpoint dtype | `float16` |
+| Tensor parallel size | `1` |
+| Max sequence length | `4096` |
+| Max input length | `3584` |
+| Max batched tokens | `4096` |
+| Max batch size | `16` |
+| Convert extra arg | `--load_model_on_cpu` |
 
 ## Homelab Qwen3-4B Build
 
@@ -29,21 +86,21 @@ source configs/profiles/homelab.env
 just down tensorrt-llm
 ```
 
-Convert the Hugging Face model into a TensorRT-LLM checkpoint:
+### Step 1: Convert HF Model to TRT-LLM Checkpoint
 
 ```bash
 just trtllm-convert-qwen Qwen/Qwen3-4B qwen3-4b-fp16-tp1 float16 1 1 --load_model_on_cpu
 ```
 
-The recipe accepts either a container-visible local model directory or a Hugging Face repo id. For repo ids such as `Qwen/Qwen3-4B`, it first downloads a local snapshot under `engines/tensorrt-llm/hf-models/`, then passes that concrete directory to TensorRT-LLM's Qwen converter.
+The recipe accepts either a container-visible local model directory or a Hugging Face repo id. For repo ids such as `Qwen/Qwen3-4B`, it downloads a local snapshot under the artifact root, then passes that concrete directory to TensorRT-LLM's Qwen converter.
 
-Build a TensorRT engine from that checkpoint:
+### Step 2: Build TensorRT Engine
 
 ```bash
 just trtllm-build-checkpoint qwen3-4b-fp16-tp1 qwen3-4b-fp16-tp1-4096 4096 3584 4096 16 1
 ```
 
-Or run both steps together:
+Or run conversion and build together:
 
 ```bash
 just trtllm-build-qwen3-4b-lab
@@ -51,21 +108,50 @@ just trtllm-build-qwen3-4b-lab
 
 The combined recipe skips conversion when the target TensorRT-LLM checkpoint already exists.
 
-Serve the built engine:
+### Step 3: Serve Engine with TensorRT Backend
 
 ```bash
 just trtllm-qwen3-4b-engine-up
+```
+
+The engine-serving recipe passes:
+
+```bash
+--backend tensorrt
+```
+
+Without `--backend tensorrt`, `trtllm-serve` treats the engine directory as a Hugging Face/PyTorch model path. Runtime limits must also match the built engine. If runtime `max_batch_size` is larger than the engine build limit, executor startup fails.
+
+### Step 4: Smoke Test
+
+```bash
 curl http://localhost:8000/health
 curl http://localhost:8000/v1/models
 ```
 
-The engine-serving recipe passes `--backend tensorrt` and runtime limits matching the built engine. Without `--backend tensorrt`, `trtllm-serve` treats the engine directory as a Hugging Face/PyTorch model path. If runtime `max_batch_size` is larger than the engine build limit, executor startup fails.
-
-Benchmark it:
+### Step 5: Benchmark
 
 ```bash
 just trtllm-qwen3-4b-engine-bench
 ```
+
+## Build Arguments
+
+Argument mapping for the default build command:
+
+```bash
+just trtllm-build-checkpoint qwen3-4b-fp16-tp1 qwen3-4b-fp16-tp1-4096 4096 3584 4096 16 1
+```
+
+| Argument | Value | Meaning |
+|---|---:|---|
+| checkpoint name | `qwen3-4b-fp16-tp1` | converted TRT-LLM checkpoint |
+| engine name | `qwen3-4b-fp16-tp1-4096` | output engine directory |
+| max seq len | `4096` | maximum total sequence length |
+| max input len | `3584` | maximum prompt length |
+| max num tokens / batched tokens | `4096` | batching token budget |
+| max batch size | `16` | maximum runtime batch |
+| TP size | `1` | tensor parallel size |
 
 ## Artifacts
 
@@ -86,26 +172,18 @@ Expected files for the default lab:
 /data/LLM/artifacts/llm-serving-lab/tensorrt-llm/hf-models/Qwen_Qwen3-4B/
 /data/LLM/artifacts/llm-serving-lab/tensorrt-llm/results/qwen3-4b-fp16-tp1.convert.log
 /data/LLM/artifacts/llm-serving-lab/tensorrt-llm/results/qwen3-4b-fp16-tp1-4096.build.log
+/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/results/qwen3-4b-fp16-tp1-4096.timing.cache
 ```
 
 Override the artifact root with `TRTLLM_ARTIFACT_DIR` if needed.
 
-## VRAM Notes
+## VRAM Tuning
 
-The default homelab build is intentionally conservative:
+If build or serve hits OOM, reduce limits in this order:
 
-| Setting | Value |
-|---|---:|
-| Model | `Qwen/Qwen3-4B` |
-| Checkpoint dtype | `float16` |
-| Tensor parallel size | `1` |
-| Max sequence length | `4096` |
-| Max input length | `3584` |
-| Max batched tokens | `4096` |
-| Max batch size | `16` |
-| Convert extra arg | `--load_model_on_cpu` |
-
-If build or serve hits OOM, lower `max_batch_size`, then `max_num_tokens`, then `max_seq_len`.
+1. Lower `max_batch_size`.
+2. Lower `max_num_tokens`.
+3. Lower `max_seq_len`.
 
 If conversion completed but engine build failed, rerun only the build step:
 
@@ -115,7 +193,14 @@ just trtllm-build-checkpoint qwen3-4b-fp16-tp1 qwen3-4b-fp16-tp1-4096 4096 3584 
 
 The build recipe removes the target engine directory before rebuilding, so a partial `rank0.engine` from a failed serialization is not reused.
 
-## Custom Qwen Model
+## Known Limitations
+
+- TensorRT-LLM does not use ONNX in this flow; there is no `.onnx` model to view with Netron.
+- TensorRT-LLM engines are tied to GPU architecture, TensorRT-LLM version, plugin settings, tensor parallel size, and sequence/batch limits.
+- `Qwen/Qwen3-8B-FP8` did not reliably serve through TensorRT-LLM on the 16GB RTX 5080 homelab profile.
+- The Qwen3-4B path is a practical homelab fallback, not a strict apples-to-apples match with the 8B vLLM/SGLang benchmark target.
+
+## Custom Qwen Models
 
 ```bash
 just trtllm-convert-qwen <hf-model-or-local-dir> <checkpoint-name> auto 1 1 --load_model_on_cpu
@@ -123,7 +208,11 @@ just trtllm-build-checkpoint <checkpoint-name> <engine-name> 4096 3584 4096 16 1
 just trtllm-engine-up <engine-name> <hf-tokenizer-id>
 ```
 
-For multi-GPU builds, set the profile and pass a larger tensor parallel size:
+Use a local HF snapshot path when you need explicit control over model revision or offline builds.
+
+## Datacenter / Multi-GPU Notes
+
+For multi-GPU builds, set the datacenter profile and pass a larger tensor parallel size:
 
 ```bash
 source configs/profiles/datacenter.env
@@ -131,9 +220,13 @@ just trtllm-convert-qwen Qwen/Qwen3-32B qwen3-32b-fp16-tp4 float16 4 4 --load_mo
 just trtllm-build-checkpoint qwen3-32b-fp16-tp4 qwen3-32b-fp16-tp4-32768 32768 31744 8192 128 4
 ```
 
+Build on the target GPU architecture whenever possible. Engines built for one GPU architecture should not be assumed portable to another.
+
 ## Troubleshooting
 
 - `trtllm-build` requires a TensorRT-LLM checkpoint directory, not a raw Hugging Face snapshot.
-- Engines should be rebuilt when the GPU architecture, TensorRT-LLM version, plugin settings, tensor parallel size, or important sequence/batch limits change.
 - On RTX 5080, stop other GPU workloads first and check `nvidia-smi` before building.
 - Keep Hugging Face caches on `/data/LLM/models/hugging-face` via `HF_HOME`.
+- If serving an engine directory fails, confirm the command includes `--backend tensorrt`.
+- If startup fails with runtime limit errors, check that `max_batch_size`, `max_num_tokens`, and `max_seq_len` do not exceed the engine build limits.
+- If an engine build fails partway through, rerun the build recipe instead of reusing a partial engine directory.

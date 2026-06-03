@@ -65,7 +65,7 @@ This lab uses Hugging Face-hosted models and keeps model choices profile-specifi
 | `datacenter` | `meta-llama/Llama-3.1-8B-Instruct` | Establish an 8B baseline on A100/H100 |
 | `datacenter` Phase 3 | `Qwen/Qwen3-32B`, `meta-llama/Llama-3.3-70B-Instruct` | Evaluate multi-GPU tensor parallel scaling |
 
-The landscape image also calls out formats such as Safetensors, GGUF, ONNX, and TensorRT Engine. In this repo, TensorRT-LLM is the path where model conversion and engine artifacts matter most.
+The landscape image also calls out formats such as Safetensors, GGUF, ONNX, and TensorRT Engine. In this repo, TensorRT-LLM is the path where model conversion and engine artifacts matter most; see `docs/tensorrt-llm-build-lab.md` for the explicit Hugging Face checkpoint -> TensorRT-LLM checkpoint -> TensorRT engine workflow.
 
 ### 5. Infrastructure
 
@@ -127,6 +127,14 @@ The benchmark runner records:
 - image variables used for the run
 
 Token accounting prefers streamed API usage tokens. If the engine does not return usage in streaming responses, the runner falls back to the model tokenizer when available, then to a word-count estimate.
+
+Generate cross-engine markdown summaries from the JSON artifacts with:
+
+```bash
+just summarize
+```
+
+This writes `benchmark/summary.md` for benchmark tables and `benchmark/features.md` for the feature validation matrix. Start Prometheus/DCGM with `just mon-up` before benchmark runs if those tables should include GPU utilization, VRAM, power, and tokens/J.
 
 ## Decision Matrix
 

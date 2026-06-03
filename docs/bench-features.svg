@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="336" viewBox="0 0 1120 336" role="img" aria-label="Feature validation matrix">
+<style>
+text{font-family:Inter,Segoe UI,Arial,sans-serif;fill:#0f172a}.title{font-size:28px;font-weight:800}.sub{font-size:13px;fill:#475569}.head{font-size:12px;font-weight:700;fill:#334155}.engine{font-size:15px;font-weight:700}.model{font-size:12px;fill:#64748b}.cell{font-size:13px;font-weight:800;text-anchor:middle}
+</style>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<rect x="18" y="18" width="1084" height="300" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+<text x="44" y="54" class="title">Feature validation matrix</text>
+<text x="44" y="78" class="sub">Generated from results/features_*.json. "manual" means startup/config log validation is required.</text>
+<text x="315.0" y="98" class="head" text-anchor="middle">Streaming</text>
+<text x="445.0" y="98" class="head" text-anchor="middle">Models API</text>
+<text x="575.0" y="98" class="head" text-anchor="middle">Concurrency</text>
+<text x="705.0" y="98" class="head" text-anchor="middle">Prefix cache</text>
+<text x="835.0" y="98" class="head" text-anchor="middle">JSON mode</text>
+<text x="965.0" y="98" class="head" text-anchor="middle">Tool calling</text>
+<text x="44" y="125" class="engine">sglang</text>
+<text x="44" y="144" class="model">Qwen3-8B-FP8</text>
+<rect x="272" y="111" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="315" y="131" class="cell" fill="#16a34a">yes</text>
+<rect x="402" y="111" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="445" y="131" class="cell" fill="#16a34a">yes</text>
+<rect x="532" y="111" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="575" y="131" class="cell" fill="#16a34a">yes</text>
+<rect x="662" y="111" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="705" y="131" class="cell" fill="#16a34a">yes</text>
+<rect x="792" y="111" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="835" y="131" class="cell" fill="#16a34a">yes</text>
+<rect x="922" y="111" width="86" height="30" rx="15" fill="#fee2e2" stroke="#dc2626" stroke-opacity="0.25"/>
+<text x="965" y="131" class="cell" fill="#dc2626">no</text>
+<text x="44" y="181" class="engine">tensorrt-llm-engine</text>
+<text x="44" y="200" class="model">Qwen3-4B</text>
+<rect x="272" y="167" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="315" y="187" class="cell" fill="#16a34a">yes</text>
+<rect x="402" y="167" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="445" y="187" class="cell" fill="#16a34a">yes</text>
+<rect x="532" y="167" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="575" y="187" class="cell" fill="#16a34a">yes</text>
+<rect x="662" y="167" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="705" y="187" class="cell" fill="#16a34a">yes</text>
+<rect x="792" y="167" width="86" height="30" rx="15" fill="#fee2e2" stroke="#dc2626" stroke-opacity="0.25"/>
+<text x="835" y="187" class="cell" fill="#dc2626">no</text>
+<rect x="922" y="167" width="86" height="30" rx="15" fill="#fee2e2" stroke="#dc2626" stroke-opacity="0.25"/>
+<text x="965" y="187" class="cell" fill="#dc2626">no</text>
+<text x="44" y="237" class="engine">vllm</text>
+<text x="44" y="256" class="model">Qwen3-8B-FP8</text>
+<rect x="272" y="223" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="315" y="243" class="cell" fill="#16a34a">yes</text>
+<rect x="402" y="223" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="445" y="243" class="cell" fill="#16a34a">yes</text>
+<rect x="532" y="223" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="575" y="243" class="cell" fill="#16a34a">yes</text>
+<rect x="662" y="223" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="705" y="243" class="cell" fill="#16a34a">yes</text>
+<rect x="792" y="223" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="835" y="243" class="cell" fill="#16a34a">yes</text>
+<rect x="922" y="223" width="86" height="30" rx="15" fill="#dcfce7" stroke="#16a34a" stroke-opacity="0.25"/>
+<text x="965" y="243" class="cell" fill="#16a34a">yes</text>
+</svg>

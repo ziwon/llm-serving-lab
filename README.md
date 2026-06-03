@@ -25,6 +25,28 @@ source configs/profiles/${LAB_PROFILE}.env
 
 > **RTX 5080 (Blackwell, sm_120) warning**: TensorRT-LLM and some frameworks require recent CUDA 12.8+ builds with compatible kernels. See the compatibility notes in `engines/*/README.md`. A 70B model is not viable with 16GB VRAM, so the homelab profile is limited to 8B-class models plus quantization.
 
+## Latest Homelab Snapshot
+
+The current refreshed homelab run was collected on an RTX 5080 with Prometheus/DCGM enabled. See `benchmark/summary.md` and `benchmark/features.md` for the generated tables.
+
+![Peak aggregate throughput](docs/bench-throughput.svg)
+
+![Peak serving efficiency](docs/bench-efficiency.svg)
+
+![Feature validation matrix](docs/bench-features.svg)
+
+| Engine | Model | Best concurrency | Agg tok/s | Tokens/J | Feature result |
+|---|---|---:|---:|---:|---|
+| vLLM | `Qwen/Qwen3-8B-FP8` | 16 | 1214.9 | 5.4059 | Streaming, JSON mode, and tool calling passed |
+| TensorRT-LLM engine | `Qwen/Qwen3-4B` | 16 | 987.8 | 4.2090 | Streaming passed; JSON mode/tool calling returned HTTP 400 |
+| SGLang | `Qwen/Qwen3-8B-FP8` | 16 | 821.0 | 3.2363 | Streaming and JSON mode passed; tool calling did not produce a tool call |
+| TGI | `Qwen/Qwen3-8B-FP8` | | | | Startup warmup failed on RTX 5080 with `PassManager::run failed` |
+
+Read the numbers with two caveats:
+
+- vLLM was refreshed with the full homelab profile (`200` prompts per concurrency level). SGLang and TensorRT-LLM engine were refreshed with `50` prompts per level to keep the all-engine run practical.
+- TensorRT-LLM is shown for the built `Qwen/Qwen3-4B` engine because the comparable `Qwen/Qwen3-8B-FP8` TensorRT-LLM serve path did not fit reliably on the 16GB homelab GPU.
+
 ## Directory Layout
 
 ```
@@ -77,9 +99,19 @@ just up vllm
 
 # 4. Run the benchmark
 just bench vllm
+
+# 5. Validate OpenAI-compatible features and regenerate docs
+just features vllm
+just summarize
 ```
 
 Benchmark tooling is managed with `uv` from `scripts/bench/pyproject.toml`. Run `just bench-sync` if you want to pre-create the local uv environment before the first benchmark.
+
+For explicit TensorRT-LLM checkpoint conversion and engine builds, use:
+
+```bash
+docs/tensorrt-llm-build-lab.md
+```
 
 For LLM/application tracing, OpenLIT can be used alongside the default GPU metrics stack:
 
@@ -103,6 +135,22 @@ just bench vllm
 ## Collected Metrics
 
 TTFT · End-to-end Latency · Tokens/sec · GPU Memory · GPU Utilization · Power Usage · Concurrent Requests
+
+Generated benchmark artifacts:
+
+| Artifact | Source |
+|---|---|
+| `benchmark/summary.md` | `results/*.json` |
+| `benchmark/features.md` | `results/features_*.json` |
+| `docs/bench-throughput.svg` | Refreshed benchmark JSON |
+| `docs/bench-efficiency.svg` | Refreshed benchmark JSON with DCGM power metrics |
+| `docs/bench-features.svg` | Feature validation JSON |
+
+Regenerate them with:
+
+```bash
+just summarize
+```
 
 ## Monitoring Choices
 

@@ -8,7 +8,10 @@ usage:
   uv run --project scripts/bench python scripts/bench/validate_features.py \
       --base-url http://localhost:8000 --model Qwen/Qwen3-8B-FP8
 """
-import argparse, concurrent.futures, json, os, time, requests
+import argparse, concurrent.futures, json, os, time
+from datetime import datetime, timezone
+
+import requests
 
 
 def env_flag(name: str, default: bool = False) -> bool:
@@ -20,20 +23,23 @@ def env_flag(name: str, default: bool = False) -> bool:
 
 def init_openlit_observability():
     if not env_flag("OPENLIT_ENABLED"):
-        return
+        return {"enabled": False}
     try:
         import openlit
 
+        endpoint = os.environ.get("OPENLIT_OTLP_ENDPOINT", "http://127.0.0.1:4318")
         openlit.init(
             application_name=os.environ.get("OPENLIT_APPLICATION_NAME", "llm-serving-lab"),
             service_name="feature-validator",
             environment=os.environ.get("LAB_PROFILE", "default"),
-            otlp_endpoint=os.environ.get("OPENLIT_OTLP_ENDPOINT", "http://127.0.0.1:4318"),
+            otlp_endpoint=endpoint,
             capture_message_content=env_flag("OPENLIT_CAPTURE_MESSAGE_CONTENT", default=False),
         )
-        print(f"[observability] openlit={os.environ.get('OPENLIT_OTLP_ENDPOINT', 'http://127.0.0.1:4318')}")
+        print(f"[observability] openlit={endpoint}")
+        return {"enabled": True, "backend": "openlit", "otlp_endpoint": endpoint}
     except Exception as e:
         print(f"[observability] openlit_error={str(e)[:200]}")
+        return {"enabled": False, "backend": "openlit", "error": str(e)[:200]}
 
 
 def wait_for_server(url: str, timeout_s: int) -> None:
@@ -145,25 +151,53 @@ def main():
     ap.add_argument("--base-url", required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--wait-timeout", type=int, default=600)
+    ap.add_argument("--engine", default=os.environ.get("ENGINE", "unknown"))
+    ap.add_argument("--out", default=None)
     args = ap.parse_args()
     url = args.base_url.rstrip("/")
 
-    init_openlit_observability()
+    observability = init_openlit_observability()
     wait_for_server(url, args.wait_timeout)
 
     print(f"[features] {args.model} @ {url}\n")
-    print(f"  streaming      : {check_streaming(url, args.model)}")
+    checks = {}
+    ok = check_streaming(url, args.model)
+    checks["streaming"] = {"ok": ok, "detail": ""}
+    print(f"  streaming      : {ok}")
     ok, detail = check_openai_models(url)
+    checks["openai_models"] = {"ok": ok, "detail": detail}
     print(f"  openai_models  : {ok}  ({detail})")
     ok, detail = check_concurrent_requests(url, args.model)
+    checks["concurrency"] = {"ok": ok, "detail": detail}
     print(f"  concurrency    : {ok}  ({detail})")
     ok, detail = check_prefix_cache_smoke(url, args.model)
+    checks["prefix_cache"] = {"ok": ok, "detail": detail}
     print(f"  prefix_cache   : {ok}  ({detail})")
     ok, detail = check_json_mode(url, args.model)
+    checks["json_mode"] = {"ok": ok, "detail": detail}
     print(f"  json_mode      : {ok}  ({detail})")
     ok, detail = check_tool_calling(url, args.model)
+    checks["tool_calling"] = {"ok": ok, "detail": detail}
     print(f"  tool_calling   : {ok}  ({detail})")
+    checks["speculative"] = {"ok": None, "detail": "manual; requires engine-specific startup config/log verification"}
     print("  speculative    : manual  (requires engine-specific startup config/log verification)")
+
+    report = {
+        "engine": args.engine,
+        "model": args.model,
+        "base_url": url,
+        "profile": os.environ.get("LAB_PROFILE", "unknown"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "observability": observability,
+        "checks": checks,
+    }
+    out = args.out or f"results/features_{args.engine}_{os.environ.get('LAB_PROFILE','x')}.json"
+    out_dir = os.path.dirname(out)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    with open(out, "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"[features] saved -> {out}")
 
 
 if __name__ == "__main__":

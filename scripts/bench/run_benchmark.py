@@ -6,8 +6,8 @@ Measures all engines under the same conditions, assuming each engine
 (vLLM/SGLang/TGI/TensorRT-LLM) exposes an OpenAI-compatible
 /v1/chat/completions streaming endpoint.
 
-Collects: TTFT, end-to-end latency, output tokens/sec, throughput (req/s).
-GPU memory/util/power should be collected separately from the monitoring stack (DCGM).
+Collects: TTFT, end-to-end latency, output tokens/sec, throughput (req/s),
+and DCGM GPU utilization/memory/power from Prometheus when available.
 
 usage:
   uv run --project scripts/bench python scripts/bench/run_benchmark.py \
@@ -15,10 +15,13 @@ usage:
       --model Qwen/Qwen3-8B-FP8 --concurrency 1 4 8 16 \
       --input-tokens 512 --output-tokens 256 --num-prompts 200
 """
-import argparse, asyncio, json, os, statistics, time
+import argparse, asyncio, json, os, statistics, subprocess, sys, time
 from datetime import datetime, timezone
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 import aiohttp
+import requests
 
 try:
     from transformers import AutoTokenizer
@@ -28,6 +31,14 @@ except ImportError:
 
 PROMPT_FILLER = "Explain the concept of distributed systems consistency models in detail. " \
                 "Cover linearizability, sequential consistency, and eventual consistency. "
+
+PROMPT_VARIANTS = {
+    "decode_heavy": "Write a detailed operational checklist for debugging an LLM serving outage. ",
+    "prefill_heavy": PROMPT_FILLER,
+    "short_chat": "Answer in three concise sentences. Compare throughput and latency for an LLM server. ",
+    "structured_json": "Return JSON with keys engine, bottleneck, and mitigation for LLM serving. ",
+    "tool_call": "Decide whether a weather tool should be called for Seoul and explain why. ",
+}
 
 
 def env_flag(name: str, default: bool = False) -> bool:
@@ -68,21 +79,23 @@ def init_openlit_observability(service_name: str):
         return {"enabled": False, "backend": "openlit", "error": str(e)[:200]}
 
 
-def make_prompt(approx_tokens: int, tokenizer=None):
+def make_prompt(approx_tokens: int, tokenizer=None, workload="prefill_heavy", prompt_id=None, prompt_mode="repeated"):
+    filler = PROMPT_VARIANTS.get(workload, PROMPT_FILLER)
+    suffix = "" if prompt_mode == "repeated" else f" Unique request id: {prompt_id}."
     if tokenizer is not None:
-        base_ids = tokenizer.encode(PROMPT_FILLER, add_special_tokens=False)
+        base_ids = tokenizer.encode(filler, add_special_tokens=False)
         if base_ids:
             repeats = (approx_tokens // len(base_ids)) + 2
             token_ids = (base_ids * repeats)[:approx_tokens]
-            return tokenizer.decode(token_ids, skip_special_tokens=True), len(token_ids), "tokenizer"
+            return tokenizer.decode(token_ids, skip_special_tokens=True) + suffix, len(token_ids), "tokenizer"
 
     # Approximate token count, roughly assuming 0.75 words/token.
     words_needed = int(approx_tokens * 0.75)
-    base = PROMPT_FILLER.split()
+    base = filler.split()
     out = []
     while len(out) < words_needed:
         out.extend(base)
-    prompt = " ".join(out[:words_needed])
+    prompt = " ".join(out[:words_needed]) + suffix
     return prompt, estimate_tokens(prompt), "word_estimate"
 
 
@@ -99,6 +112,98 @@ def estimate_tokens(text: str) -> int:
     if not text:
         return 0
     return max(1, int(len(text.split()) / 0.75))
+
+
+def git_sha():
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except Exception:
+        return "unknown"
+
+
+def prometheus_query_range(prometheus_url, query, start, end, step="5s"):
+    params = urlencode({"query": query, "start": start, "end": end, "step": step})
+    url = f"{prometheus_url.rstrip('/')}/api/v1/query_range?{params}"
+    with urlopen(url, timeout=10) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    if payload.get("status") != "success":
+        return []
+    values = []
+    for series in payload.get("data", {}).get("result", []):
+        for _, value in series.get("values", []):
+            try:
+                values.append(float(value))
+            except (TypeError, ValueError):
+                pass
+    return values
+
+
+def summarize_values(values):
+    if not values:
+        return None
+    return {
+        "avg": round(statistics.mean(values), 3),
+        "max": round(max(values), 3),
+        "samples": len(values),
+    }
+
+
+def collect_gpu_metrics(start, end, agg_tokens_per_s):
+    prometheus_url = os.environ.get("PROMETHEUS_URL", "http://127.0.0.1:9090")
+    queries = {
+        "gpu_util_percent": "DCGM_FI_DEV_GPU_UTIL",
+        "vram_used_mib": "DCGM_FI_DEV_FB_USED",
+        "power_watts": "DCGM_FI_DEV_POWER_USAGE",
+    }
+    try:
+        metrics = {
+            name: summarize_values(prometheus_query_range(prometheus_url, query, start, end))
+            for name, query in queries.items()
+        }
+    except Exception as e:
+        return {"available": False, "source": prometheus_url, "error": str(e)[:160]}
+
+    avg_power = (metrics.get("power_watts") or {}).get("avg")
+    tokens_per_joule = round(agg_tokens_per_s / avg_power, 4) if avg_power else None
+    return {
+        "available": any(value for value in metrics.values()),
+        "source": prometheus_url,
+        **metrics,
+        "tokens_per_joule": tokens_per_joule,
+    }
+
+
+def wait_for_server(base_url, timeout_s):
+    url = base_url.rstrip("/")
+    deadline = time.time() + timeout_s
+    last_error = "not checked"
+    while time.time() < deadline:
+        try:
+            response = requests.get(f"{url}/health", timeout=5)
+            if response.status_code == 200:
+                return
+            last_error = f"HTTP {response.status_code}"
+        except Exception as e:
+            last_error = str(e)[:160]
+        time.sleep(5)
+    raise SystemExit(f"[bench] server is not healthy after {timeout_s}s: {last_error}")
+
+
+def resolve_model(base_url, requested_model):
+    if requested_model:
+        return requested_model, "argument_or_env"
+    url = base_url.rstrip("/")
+    try:
+        response = requests.get(f"{url}/v1/models", timeout=30)
+        response.raise_for_status()
+        models = response.json().get("data") or []
+        if models and models[0].get("id"):
+            return models[0]["id"], "server_models"
+    except Exception as e:
+        raise SystemExit(f"[bench] MODEL_ID is not set and /v1/models could not be read: {str(e)[:160]}")
+    raise SystemExit("[bench] MODEL_ID is not set and /v1/models returned no model ids")
 
 
 def count_output_tokens(text, usage_completion_tokens, tokenizer):
@@ -180,18 +285,21 @@ async def one_request(session, base_url, model, prompt, max_tokens, tokenizer):
     }
 
 
-async def run_level(base_url, model, concurrency, num_prompts, input_tokens, output_tokens, tokenizer):
-    prompt, actual_input_tokens, input_token_count_source = make_prompt(input_tokens, tokenizer)
+async def run_level(base_url, model, concurrency, num_prompts, input_tokens, output_tokens, tokenizer, workload, prompt_mode):
+    prompt, actual_input_tokens, input_token_count_source = make_prompt(input_tokens, tokenizer, workload)
     sem = asyncio.Semaphore(concurrency)
     results = []
     connector = aiohttp.TCPConnector(limit=concurrency * 2)
     timeout = aiohttp.ClientTimeout(total=600)
     wall0 = time.perf_counter()
     async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-        async def worker():
+        async def worker(prompt_id):
             async with sem:
-                return await one_request(session, base_url, model, prompt, output_tokens, tokenizer)
-        tasks = [asyncio.create_task(worker()) for _ in range(num_prompts)]
+                request_prompt = prompt
+                if prompt_mode != "repeated":
+                    request_prompt, _, _ = make_prompt(input_tokens, tokenizer, workload, prompt_id, prompt_mode)
+                return await one_request(session, base_url, model, request_prompt, output_tokens, tokenizer)
+        tasks = [asyncio.create_task(worker(i)) for i in range(num_prompts)]
         for fut in asyncio.as_completed(tasks):
             results.append(await fut)
     wall = time.perf_counter() - wall0
@@ -220,6 +328,7 @@ async def run_level(base_url, model, concurrency, num_prompts, input_tokens, out
         i = min(len(xs) - 1, int(round((p / 100) * (len(xs) - 1))))
         return xs[i]
 
+    agg_tokens_per_s = round(total_tokens / wall, 1)
     return {
         "concurrency": concurrency,
         "ok": len(ok),
@@ -232,7 +341,7 @@ async def run_level(base_url, model, concurrency, num_prompts, input_tokens, out
         "e2e_s_p50": round(pct(e2es, 50), 3),
         "e2e_s_p95": round(pct(e2es, 95), 3),
         "mean_tps_per_req": round(statistics.mean(r["tps"] for r in ok), 1),
-        "agg_tokens_per_s": round(total_tokens / wall, 1),
+        "agg_tokens_per_s": agg_tokens_per_s,
         "throughput_req_s": round(len(ok) / wall, 2),
         "token_count_sources": token_count_sources,
     }
@@ -242,14 +351,20 @@ async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", required=True)
     ap.add_argument("--base-url", required=True)
-    ap.add_argument("--model", default=os.environ.get("MODEL_ID", "Qwen/Qwen3-8B-FP8"))
+    ap.add_argument("--model", default=os.environ.get("MODEL_ID"))
     ap.add_argument("--concurrency", nargs="+", type=int,
                     default=[int(x) for x in os.environ.get("BENCH_CONCURRENCY", "1 4 8 16").split()])
     ap.add_argument("--input-tokens", type=int, default=int(os.environ.get("BENCH_INPUT_TOKENS", 512)))
     ap.add_argument("--output-tokens", type=int, default=int(os.environ.get("BENCH_OUTPUT_TOKENS", 256)))
     ap.add_argument("--num-prompts", type=int, default=int(os.environ.get("BENCH_NUM_PROMPTS", 200)))
+    ap.add_argument("--workload", choices=sorted(PROMPT_VARIANTS), default=os.environ.get("BENCH_WORKLOAD", "prefill_heavy"))
+    ap.add_argument("--prompt-mode", choices=["repeated", "randomized"], default=os.environ.get("BENCH_PROMPT_MODE", "repeated"))
+    ap.add_argument("--wait-timeout", type=int, default=int(os.environ.get("BENCH_WAIT_TIMEOUT", 900)))
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+
+    wait_for_server(args.base_url, args.wait_timeout)
+    args.model, model_source = resolve_model(args.base_url, args.model)
 
     observability = init_openlit_observability("bench-runner")
     if observability.get("enabled"):
@@ -260,14 +375,20 @@ async def main():
     tokenizer, tokenizer_error = load_tokenizer(args.model)
     token_count_source = "tokenizer" if tokenizer is not None else "stream_usage_or_word_estimate"
     print(f"[bench] engine={args.engine} model={args.model} url={args.base_url}")
+    print(f"[bench] model_source={model_source}")
     print(f"[bench] token_count_fallback={token_count_source}")
     if tokenizer_error:
         print(f"[bench] tokenizer_warning={tokenizer_error}")
     levels = []
     for c in args.concurrency:
         print(f"  -> concurrency={c} ...", flush=True)
+        level_start = time.time()
         res = await run_level(args.base_url, args.model, c, args.num_prompts,
-                              args.input_tokens, args.output_tokens, tokenizer)
+                              args.input_tokens, args.output_tokens, tokenizer,
+                              args.workload, args.prompt_mode)
+        level_end = time.time()
+        if res.get("ok"):
+            res["gpu_metrics"] = collect_gpu_metrics(level_start, level_end, res.get("agg_tokens_per_s", 0.0))
         print(f"     {json.dumps(res)}")
         levels.append(res)
 
@@ -277,6 +398,8 @@ async def main():
         "profile": os.environ.get("LAB_PROFILE", "unknown"),
         "gpu": os.environ.get("GPU_NAME", "unknown"),
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "git_sha": git_sha(),
+        "command": sys.argv,
         "observability": observability,
         "images": {
             "vllm": os.environ.get("VLLM_IMAGE"),
@@ -288,6 +411,10 @@ async def main():
             "input_tokens": args.input_tokens,
             "output_tokens": args.output_tokens,
             "num_prompts": args.num_prompts,
+            "workload": args.workload,
+            "prompt_mode": args.prompt_mode,
+            "model_source": model_source,
+            "wait_timeout_s": args.wait_timeout,
             "token_count_fallback": token_count_source,
             "tokenizer_error": tokenizer_error,
         },

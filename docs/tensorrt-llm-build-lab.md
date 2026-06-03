@@ -21,6 +21,7 @@
 - [Debugging and Inspection Toolkit](#debugging-and-inspection-toolkit)
 - [Appendix A. VRAM Budgeting for TensorRT-LLM Engines](#appendix-a-vram-budgeting-for-tensorrt-llm-engines)
 - [Appendix B. Quantization Paths to Explore](#appendix-b-quantization-paths-to-explore)
+- [Appendix C. Datacenter Multi-GPU Build Playbook](#appendix-c-datacenter-multi-gpu-build-playbook)
 - [NVIDIA References](#nvidia-references)
 
 ## Purpose
@@ -467,6 +468,121 @@ The default lab is FP16 because it is the simplest reproducible baseline. Quanti
 | KV cache quantization | Reduces long-context KV cache pressure when supported by the model and build path. |
 
 Keep quantized experiments separate from the FP16 baseline. Use distinct checkpoint and engine names so benchmark results remain attributable to the exact build profile.
+
+## Appendix C. Datacenter Multi-GPU Build Playbook
+
+Use this playbook when moving from the single-GPU homelab engine to a larger TensorRT-LLM build on datacenter GPUs.
+
+### 1. Select the Parallelism Plan
+
+Start with tensor parallelism unless the model or cluster shape forces a more complex plan.
+
+| Model size | Starting point | Notes |
+|---|---:|---|
+| 4B to 8B | `tp_size=1` or `2` | Single GPU is often enough; TP2 can help memory or throughput experiments. |
+| 14B to 32B | `tp_size=2` or `4` | Common range for one node with NVLink. |
+| 70B class | `tp_size=4` or `8` | Prefer NVLink or high-bandwidth interconnect. Validate memory before long-context builds. |
+| MoE models | model-specific | Expert parallelism and MoE plugin choices matter; do not assume dense-model settings transfer directly. |
+
+Keep `world_size`, `tp_size`, and the visible GPU count aligned. A TP4 checkpoint and engine must be built and served with four ranks available.
+
+### 2. Prepare the Datacenter Profile
+
+```bash
+source configs/profiles/datacenter.env
+export HF_HOME=/data/LLM/models/hugging-face
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+```
+
+Confirm the target GPUs and interconnect before building:
+
+```bash
+nvidia-smi
+nvidia-smi topo -m
+```
+
+Build on the same GPU architecture that will serve the engine. Do not assume engines are portable across different SM versions or TensorRT-LLM releases.
+
+### 3. Convert the Checkpoint
+
+Example TP4 conversion for a larger Qwen model:
+
+```bash
+just trtllm-convert-qwen Qwen/Qwen3-32B qwen3-32b-fp16-tp4 float16 4 4 --load_model_on_cpu
+```
+
+The key values are:
+
+| Argument | Value | Meaning |
+|---|---:|---|
+| checkpoint name | `qwen3-32b-fp16-tp4` | output TensorRT-LLM checkpoint directory |
+| dtype | `float16` | checkpoint weight dtype |
+| TP size | `4` | tensor parallel ranks |
+| workers | `4` | conversion workers |
+
+### 4. Build a Matching Engine
+
+Example long-context TP4 engine:
+
+```bash
+just trtllm-build-checkpoint qwen3-32b-fp16-tp4 qwen3-32b-fp16-tp4-32768 32768 31744 8192 128 4
+```
+
+The serving envelope is intentionally separate from the model's original context metadata:
+
+| Build field | Example | Trade-off |
+|---|---:|---|
+| `max_seq_len` | `32768` | Larger context, more KV cache pressure. |
+| `max_input_len` | `31744` | Leaves room for generated tokens inside `max_seq_len`. |
+| `max_num_tokens` | `8192` | Batch token budget after padding removal. |
+| `max_batch_size` | `128` | High throughput target; reduce first if build or serve fails. |
+| workers | `4` | Build parallelism, not runtime batch size. |
+
+### 5. Serve with Matching Runtime Limits
+
+The runtime command must not request limits larger than the built engine. For custom datacenter engines, prefer setting the serve args explicitly:
+
+```bash
+cd engines/tensorrt-llm
+TRTLLM_ARTIFACT_DIR=/data/LLM/artifacts/llm-serving-lab/tensorrt-llm \
+MODEL_ID=/engines/qwen3-32b-fp16-tp4-32768 \
+TENSOR_PARALLEL_SIZE=4 \
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+TENSORRT_LLM_EXTRA_ARGS="--tokenizer Qwen/Qwen3-32B --backend tensorrt --max_batch_size 128 --max_num_tokens 8192 --max_seq_len 32768" \
+docker compose up -d
+```
+
+Then smoke test:
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/v1/models
+```
+
+### 6. Benchmark and Compare
+
+Use the same repo benchmark path for cross-engine comparison:
+
+```bash
+uv run --project scripts/bench python scripts/bench/run_benchmark.py \
+  --engine tensorrt-llm-engine \
+  --base-url http://localhost:8000 \
+  --model Qwen/Qwen3-32B \
+  --out results/tensorrt-llm_engine_qwen3-32b_datacenter.json
+```
+
+For TensorRT-LLM-only tuning, add native `trtllm-bench` runs separately and keep those results labeled apart from HTTP endpoint benchmarks.
+
+### 7. Failure Triage
+
+Use this order when a datacenter profile fails:
+
+1. Confirm `CUDA_VISIBLE_DEVICES`, `tp_size`, and engine checkpoint mapping all agree.
+2. Reduce `max_batch_size`.
+3. Reduce `max_num_tokens`.
+4. Reduce `max_seq_len`.
+5. Rebuild with `--dry_run`, `--monitor_memory`, or `--profiling_verbosity detailed` when the failure is unclear.
+6. Check NCCL, container runtime, and interconnect visibility if multi-rank startup hangs.
 
 ## NVIDIA References
 

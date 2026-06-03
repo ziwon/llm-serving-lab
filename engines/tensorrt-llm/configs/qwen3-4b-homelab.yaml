@@ -1,0 +1,13 @@
+max_batch_size: 16
+max_num_tokens: 4096
+kv_cache_free_gpu_memory_fraction: 0.65
+tensor_parallel_size: 1
+cuda_graph_config:
+  enable_padding: true
+  batch_sizes:
+    - 1
+    - 2
+    - 4
+    - 8
+    - 16
+print_iter_log: true

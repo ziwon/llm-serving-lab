@@ -19,14 +19,64 @@ source ../../configs/profiles/${LAB_PROFILE}.env
 docker compose up -d
 ```
 
-### B. trtllm-build (standard) — maximum performance
+From the repository root, the Qwen3-4B homelab profile can be started with the curated low-VRAM config:
+
+```bash
+source configs/profiles/homelab.env
+just trtllm-qwen3-4b-up
+```
+
+Wait for the service to become healthy before probing `/v1/models`:
+
+```bash
+docker ps --filter name=trtllm
+curl http://localhost:8000/health
+curl http://localhost:8000/v1/models
+```
+
+Run the Qwen3-4B benchmark:
+
+```bash
+just trtllm-qwen3-4b-bench
+```
+
+### B. convert_checkpoint.py + trtllm-build (standard) — maximum performance
 Explicitly build a checkpoint into engine artifacts, then serve those artifacts. This gives precise control over quantization and plugin options.
+
+Important: `trtllm-build` expects a TensorRT-LLM checkpoint/config directory, not a raw Hugging Face snapshot. In this TensorRT-LLM `1.2.0rc7` container, the Qwen3 quick-start path uses `trtllm-serve ... --config`; a raw `Qwen/Qwen3-4B` HF snapshot is not directly accepted by `trtllm-build`.
+
+The repository-level build lab is documented at:
+
+```bash
+docs/tensorrt-llm-build-lab.md
+```
+
+For the homelab Qwen3-4B path:
+
+```bash
+source configs/profiles/homelab.env
+just trtllm-build-qwen3-4b-lab
+just trtllm-qwen3-4b-engine-up
+just trtllm-qwen3-4b-engine-bench
+```
 
 ```bash
 # After entering the container
 trtllm-build --checkpoint_dir <converted_ckpt> \
   --output_dir /engines/qwen3-8b-fp8 \
   --gemm_plugin auto --max_seq_len 8192
+```
+
+From the repository root, if you already have a converted TensorRT-LLM checkpoint directory in the repo, build an engine with:
+
+```bash
+just trtllm-build path/to/converted_ckpt qwen3-4b-rtx5080
+```
+
+Serve that built engine:
+
+```bash
+just trtllm-engine-up qwen3-4b-rtx5080 Qwen/Qwen3-4B
 ```
 
 ## Benchmark

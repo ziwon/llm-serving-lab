@@ -50,6 +50,16 @@ The workflow is based on NVIDIA's `convert_checkpoint.py` + `trtllm-build` patte
 4. Serve the built engine with the TensorRT backend.
 5. Benchmark the OpenAI-compatible endpoint.
 
+```mermaid
+flowchart LR
+    HF["HF model snapshot<br/>Qwen/Qwen3-4B<br/>safetensors + tokenizer"] --> Convert["convert_checkpoint.py<br/>dtype: float16<br/>tp_size: 1"]
+    Convert --> Checkpoint["TRT-LLM checkpoint<br/>qwen3-4b-fp16-tp1<br/>config.json + rank0.safetensors"]
+    Checkpoint --> Build["trtllm-build<br/>max_seq_len: 4096<br/>max_input_len: 3584<br/>max_batch_size: 16"]
+    Build --> Engine["TensorRT engine<br/>qwen3-4b-fp16-tp1-4096<br/>config.json + rank0.engine"]
+    Engine --> Serve["trtllm-serve<br/>--backend tensorrt<br/>OpenAI-compatible API"]
+    Serve --> Bench["benchmark runner<br/>latency, throughput,<br/>GPU/DCGM metrics"]
+```
+
 ## Why Qwen3-4B FP16 for Homelab
 
 The default homelab GPU target is RTX 5080 16GB. The comparable `Qwen/Qwen3-8B-FP8` TensorRT-LLM serving path did not reliably fit in this environment, so this lab uses `Qwen/Qwen3-4B` as the practical TensorRT-LLM build target.
@@ -201,6 +211,16 @@ For the default built engine, the relevant `build_config` values are:
 
 In short, the checkpoint config says the converted model is Qwen3-4B dense FP16 TP1 with GQA and long-context RoPE metadata. The engine config defines what this specific build can serve, and the default lab engine is capped at `4096` total sequence length.
 
+```mermaid
+flowchart TB
+    Source["Hugging Face source model<br/>Qwen3-4B<br/>max_position_embeddings: 40960"] --> Ckpt["TRT-LLM checkpoint config<br/>dtype: float16<br/>seq_length: 8192<br/>tp_size: 1<br/>dense GQA model"]
+    Ckpt --> EngineCfg["Engine build_config<br/>max_seq_len: 4096<br/>max_input_len: 3584<br/>max_num_tokens: 4096<br/>max_batch_size: 16"]
+    EngineCfg --> Runtime["Runtime serving limit<br/>requests must fit inside<br/>the built engine profile"]
+
+    Ckpt -.-> Note1["Model metadata<br/>does not decide final<br/>serving context alone"]
+    EngineCfg -.-> Note2["Runtime contract<br/>enforced by trtllm-serve"]
+```
+
 ## Artifacts
 
 Generated artifacts are ignored by git and written under:
@@ -214,13 +234,25 @@ Generated artifacts are ignored by git and written under:
 
 Expected files for the default lab:
 
-```bash
-/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/checkpoints/qwen3-4b-fp16-tp1/
-/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/engines-out/qwen3-4b-fp16-tp1-4096/
-/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/hf-models/Qwen_Qwen3-4B/
-/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/results/qwen3-4b-fp16-tp1.convert.log
-/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/results/qwen3-4b-fp16-tp1-4096.build.log
-/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/results/qwen3-4b-fp16-tp1-4096.timing.cache
+```text
+/data/LLM/artifacts/llm-serving-lab/tensorrt-llm/
+|-- hf-models/
+|   `-- Qwen_Qwen3-4B/
+|       |-- model-*.safetensors
+|       |-- tokenizer.json
+|       `-- config.json
+|-- checkpoints/
+|   `-- qwen3-4b-fp16-tp1/
+|       |-- config.json
+|       `-- rank0.safetensors
+|-- engines-out/
+|   `-- qwen3-4b-fp16-tp1-4096/
+|       |-- config.json
+|       `-- rank0.engine
+`-- results/
+    |-- qwen3-4b-fp16-tp1.convert.log
+    |-- qwen3-4b-fp16-tp1-4096.build.log
+    `-- qwen3-4b-fp16-tp1-4096.timing.cache
 ```
 
 Override the artifact root with `TRTLLM_ARTIFACT_DIR` if needed.

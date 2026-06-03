@@ -10,7 +10,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
     volumes:
-      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+      - ${HF_HOME:-/data/LLM/models/hugging-face}:/root/.cache/huggingface
     ipc: host
     command: >
       python3 -m sglang.launch_server
@@ -20,6 +20,8 @@ services:
       --mem-fraction-static ${GPU_MEMORY_UTILIZATION:-0.90}
       --host 0.0.0.0
       --port 30000
+      --enable-metrics
+      ${SGLANG_EXTRA_ARGS:-}
     deploy:
       resources:
         reservations:

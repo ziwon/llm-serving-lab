@@ -16,7 +16,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+      - ${HF_HOME:-/data/LLM/models/hugging-face}:/root/.cache/huggingface
     ipc: host
     command: >
       ${MODEL_ID:-Qwen/Qwen3-8B-FP8}

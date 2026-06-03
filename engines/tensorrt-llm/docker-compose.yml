@@ -11,10 +11,12 @@ services:
     environment:
       - HF_TOKEN=${HF_TOKEN:-}
       - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
-      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+      - PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
     volumes:
-      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
-      - ./engines-out:/engines       # trtllm-build outputs
+      - ${HF_HOME:-/data/LLM/models/hugging-face}:/root/.cache/huggingface
+      - ${TRTLLM_ARTIFACT_DIR:-/data/LLM/artifacts/llm-serving-lab/tensorrt-llm}/engines-out:/engines
+      - ./configs:/configs:ro
     ipc: host
     # Serve an HF checkpoint directly with trtllm-serve (simple path)
     command: >
@@ -23,6 +25,7 @@ services:
       --max_seq_len ${MAX_MODEL_LEN:-8192}
       --host 0.0.0.0
       --port 8000
+      ${TENSORRT_LLM_EXTRA_ARGS:-}
     deploy:
       resources:
         reservations:

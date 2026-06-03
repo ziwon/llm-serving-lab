@@ -10,7 +10,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-all}
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
     volumes:
-      - ${HF_HOME:-~/.cache/huggingface}:/data
+      - ${HF_HOME:-/data/LLM/models/hugging-face}:/data
     ipc: host
     command: >
       --model-id ${MODEL_ID:-Qwen/Qwen3-8B-FP8}

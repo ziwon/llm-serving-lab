@@ -2,7 +2,17 @@
 
 This document is the operator-facing map for this repository. The image below shows the broader open-source LLM serving ecosystem; the rest of this document narrows that landscape into what this lab builds, measures, and compares.
 
-![LLM Serving Landscape](./landscape.png)
+![LLM Serving Landscape](assets/images/landscape.png)
+
+## Document Map
+
+| Area | Document |
+|---|---|
+| Architecture | [Ray Cluster to Triton Inference Server](architecture/ray-triton-inference-serving.md) |
+| Labs | [TensorRT-LLM Conversion and Build Lab](labs/tensorrt-llm-build-lab.md) |
+| Labs | [TensorRT ONNX Lab](labs/tensorrt-onnx-lab.md) |
+| Tools | [ONNX Viewer](tools/onnx-viewer.md) |
+| Assets | `assets/images/`, `assets/benchmarks/` |
 
 ## Repository Scope
 
@@ -65,7 +75,7 @@ This lab uses Hugging Face-hosted models and keeps model choices profile-specifi
 | `datacenter` | `meta-llama/Llama-3.1-8B-Instruct` | Establish an 8B baseline on A100/H100 |
 | `datacenter` Phase 3 | `Qwen/Qwen3-32B`, `meta-llama/Llama-3.3-70B-Instruct` | Evaluate multi-GPU tensor parallel scaling |
 
-The landscape image also calls out formats such as Safetensors, GGUF, ONNX, and TensorRT Engine. In this repo, TensorRT-LLM is the path where model conversion and engine artifacts matter most; see `docs/tensorrt-llm-build-lab.md` for the explicit Hugging Face checkpoint -> TensorRT-LLM checkpoint -> TensorRT engine workflow.
+The landscape image also calls out formats such as Safetensors, GGUF, ONNX, and TensorRT Engine. In this repo, TensorRT-LLM is the path where model conversion and engine artifacts matter most; see [`labs/tensorrt-llm-build-lab.md`](labs/tensorrt-llm-build-lab.md) for the explicit Hugging Face checkpoint -> TensorRT-LLM checkpoint -> TensorRT engine workflow.
 
 ### 5. Infrastructure
 

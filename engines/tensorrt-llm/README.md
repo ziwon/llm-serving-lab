@@ -48,7 +48,7 @@ Important: `trtllm-build` expects a TensorRT-LLM checkpoint/config directory, no
 The repository-level build lab is documented at:
 
 ```bash
-docs/tensorrt-llm-build-lab.md
+docs/labs/tensorrt-llm-build-lab.md
 ```
 
 For the homelab Qwen3-4B path:

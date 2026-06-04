@@ -29,11 +29,11 @@ source configs/profiles/${LAB_PROFILE}.env
 
 The current refreshed homelab run was collected on an RTX 5080 with Prometheus/DCGM enabled. See `benchmark/summary.md` and `benchmark/features.md` for the generated tables.
 
-![Peak aggregate throughput](docs/bench-throughput.svg)
+![Peak aggregate throughput](docs/assets/benchmarks/bench-throughput.svg)
 
-![Peak serving efficiency](docs/bench-efficiency.svg)
+![Peak serving efficiency](docs/assets/benchmarks/bench-efficiency.svg)
 
-![Feature validation matrix](docs/bench-features.svg)
+![Feature validation matrix](docs/assets/benchmarks/bench-features.svg)
 
 | Engine | Model | Best concurrency | Agg tok/s | Tokens/J | Feature result |
 |---|---|---:|---:|---:|---|
@@ -62,7 +62,11 @@ llm-serving-lab/
 ├── monitoring/              # Prometheus/Grafana/DCGM plus OpenLIT notes
 ├── benchmark/               # Result documents per engine
 ├── results/                 # Raw JSON results (partially gitignored)
-└── docs/                    # Landscape map and production report notes
+└── docs/                    # Docs index and supporting material
+    ├── architecture/        # Serving architecture notes
+    ├── labs/                # Hands-on build and benchmark labs
+    ├── tools/               # Utility notes
+    └── assets/              # Images and generated benchmark charts
 ```
 
 ## Phase Roadmap
@@ -108,7 +112,7 @@ just summarize
 Benchmark tooling is managed with `uv` from `scripts/bench/pyproject.toml`. Run `just bench-sync` if you want to pre-create the local uv environment before the first benchmark.
 
 For explicit TensorRT-LLM checkpoint conversion and engine builds, see
-[TensorRT-LLM Conversion and Build Lab](docs/tensorrt-llm-build-lab.md).
+[TensorRT-LLM Conversion and Build Lab](docs/labs/tensorrt-llm-build-lab.md).
 
 For LLM/application tracing, OpenLIT can be used alongside the default GPU metrics stack:
 
@@ -139,9 +143,9 @@ Generated benchmark artifacts:
 |---|---|
 | `benchmark/summary.md` | `results/*.json` |
 | `benchmark/features.md` | `results/features_*.json` |
-| `docs/bench-throughput.svg` | Refreshed benchmark JSON |
-| `docs/bench-efficiency.svg` | Refreshed benchmark JSON with DCGM power metrics |
-| `docs/bench-features.svg` | Feature validation JSON |
+| `docs/assets/benchmarks/bench-throughput.svg` | Refreshed benchmark JSON |
+| `docs/assets/benchmarks/bench-efficiency.svg` | Refreshed benchmark JSON with DCGM power metrics |
+| `docs/assets/benchmarks/bench-features.svg` | Feature validation JSON |
 
 Regenerate them with:
 

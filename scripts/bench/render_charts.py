@@ -180,7 +180,7 @@ def svg_feature_matrix(reports, out_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results-dir", default="results")
-    parser.add_argument("--out-dir", default="docs")
+    parser.add_argument("--out-dir", default="docs/assets/benchmarks")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)

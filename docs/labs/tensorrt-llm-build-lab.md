@@ -32,7 +32,7 @@ This lab documents the real TensorRT-LLM path for LLM serving:
 Hugging Face checkpoint -> TensorRT-LLM checkpoint -> TensorRT engine -> trtllm-serve
 ```
 
-This is separate from `docs/tensorrt-onnx-lab.md`, which covers generic ONNX import with `trtexec`.
+This is separate from [`tensorrt-onnx-lab.md`](tensorrt-onnx-lab.md), which covers generic ONNX import with `trtexec`.
 
 TensorRT-LLM engine artifacts are hardware-specific. Build on the target GPU architecture when possible, especially on Blackwell consumer GPUs such as RTX 5080 (`sm_120`).
 

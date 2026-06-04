@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1850" viewBox="0 0 1400 1850" role="img" aria-labelledby="title desc">
+  <title id="title">Ray Serve to Triton Inference Server architecture</title>
+  <desc id="desc">Architecture diagram separating Ray control plane from the inference request data plane.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .ink { fill: #102033; }
+      .muted { fill: #5d6b7c; }
+      .line { stroke: #91a0b2; stroke-width: 3; fill: none; }
+      .dash { stroke: #7d8fa3; stroke-width: 3; fill: none; stroke-dasharray: 9 9; }
+      .card { fill: #ffffff; stroke-width: 2.5; }
+      .label { font-family: Arimo, sans-serif; font-size: 20px; font-weight: 700; font-style: normal; }
+      .small { font-family: Arimo, sans-serif; font-size: 17px; font-style: normal; }
+      .tiny { font-family: Arimo, sans-serif; font-size: 15px; font-style: normal; }
+      .headline { font-family: Arimo, sans-serif; font-size: 42px; font-weight: 800; font-style: normal; }
+      .subtitle { font-family: Arimo, sans-serif; font-size: 18px; font-weight: 600; font-style: normal; letter-spacing: 0; }
+      .chip { font-family: Arimo, sans-serif; font-size: 14px; font-weight: 700; font-style: normal; fill: #ffffff; }
+    </style>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#91a0b2"/>
+    </marker>
+    <marker id="arrowDash" markerWidth="14" markerHeight="14" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7d8fa3"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="1850"/>
+  <rect x="30" y="30" width="1340" height="1790" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+  <g transform="translate(72 78)">
+    <rect x="0" y="0" width="54" height="54" rx="11" fill="#4f46e5"/>
+    <path d="M27 8 L47 20 L27 32 L7 20 Z" fill="#a78bfa"/>
+    <path d="M7 25 L27 37 L27 53 L7 41 Z" fill="#7c3aed"/>
+    <path d="M47 25 L27 37 L27 53 L47 41 Z" fill="#6366f1"/>
+    <text x="75" y="35" class="headline" fill="#102033">Ray Serve to Triton Inference Server</text>
+    <text x="76" y="69" class="subtitle" fill="#5d6b7c">AI inference serving architecture with explicit control-plane and data-plane boundaries</text>
+  </g>
+
+  <line x1="72" y1="182" x2="1328" y2="182" stroke="#102033" stroke-width="3"/>
+
+  <g transform="translate(72 230)">
+    <rect x="0" y="0" width="812" height="72" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="28" y="31" class="label" fill="#1d4ed8">Data plane</text>
+    <text x="28" y="57" class="small muted">Inference request payload path. Head node is not in this path.</text>
+  </g>
+
+  <g transform="translate(930 230)">
+    <rect x="0" y="0" width="346" height="72" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+    <text x="24" y="31" class="label" fill="#334155">Control plane</text>
+    <text x="24" y="57" class="small muted">Placement, scale, config, health.</text>
+  </g>
+
+  <!-- Data plane cards -->
+  <g id="data-plane">
+    <rect class="card" x="170" y="350" width="615" height="110" rx="12" stroke="#2563eb"/>
+    <text x="206" y="388" class="label" fill="#1d4ed8">Client Request</text>
+    <text x="206" y="419" class="small ink">HTTP or gRPC request carrying prompts, tokens, embeddings, or tensors.</text>
+    <rect x="206" y="432" width="56" height="28" rx="5" fill="#2563eb"/>
+    <text x="222" y="452" class="chip">REST</text>
+    <rect x="274" y="432" width="58" height="28" rx="5" fill="#2563eb"/>
+    <text x="287" y="452" class="chip">gRPC</text>
+
+    <line class="line" x1="478" y1="460" x2="478" y2="520" marker-end="url(#arrow)"/>
+    <text x="502" y="497" class="tiny muted">enters serving endpoint</text>
+
+    <rect class="card" x="170" y="540" width="615" height="116" rx="12" stroke="#0ea5e9"/>
+    <text x="206" y="580" class="label" fill="#0369a1">Ray Serve HTTP/gRPC Proxy</text>
+    <text x="206" y="612" class="small ink">Ingress proxy receives requests and forwards them into Serve.</text>
+    <text x="206" y="638" class="small muted">Can run per node behind an external load balancer.</text>
+
+    <line class="line" x1="478" y1="656" x2="478" y2="716" marker-end="url(#arrow)"/>
+    <text x="502" y="693" class="tiny muted">routes request</text>
+
+    <rect class="card" x="170" y="736" width="615" height="116" rx="12" stroke="#f97316"/>
+    <text x="206" y="776" class="label" fill="#c2410c">Router / DeploymentHandle</text>
+    <text x="206" y="808" class="small ink">Selects an available deployment replica using routing policy and backpressure.</text>
+    <text x="206" y="834" class="small muted">This is request routing, not head-node forwarding.</text>
+
+    <line class="line" x1="478" y1="852" x2="478" y2="912" marker-end="url(#arrow)"/>
+    <text x="502" y="889" class="tiny muted">selects replica actor</text>
+
+    <rect class="card" x="170" y="932" width="615" height="130" rx="12" stroke="#16a34a"/>
+    <text x="206" y="972" class="label" fill="#15803d">Ray Serve Replica Actor on Worker Node</text>
+    <text x="206" y="1004" class="small ink">Runs application logic: validation, preprocessing, tenant routing, fallback, postprocessing.</text>
+    <text x="206" y="1030" class="small muted">Replica actor dispatches to local or remote Triton endpoints.</text>
+
+    <line class="line" x1="478" y1="1062" x2="478" y2="1122" marker-end="url(#arrow)"/>
+    <text x="502" y="1099" class="tiny muted">dispatches to model server</text>
+
+    <rect class="card" x="170" y="1142" width="292" height="142" rx="12" stroke="#dc2626"/>
+    <text x="206" y="1182" class="label" fill="#b91c1c">Triton Server</text>
+    <text x="206" y="1214" class="small ink">Model repository, version policy,</text>
+    <text x="206" y="1240" class="small ink">instance groups, metrics.</text>
+    <text x="206" y="1266" class="small muted">Dynamic batching for stateless workloads.</text>
+
+    <rect class="card" x="493" y="1142" width="292" height="142" rx="12" stroke="#dc2626"/>
+    <text x="529" y="1182" class="label" fill="#b91c1c">Model Pipeline</text>
+    <text x="529" y="1214" class="small ink">Ensemble and BLS for model-level pre/post-processing.</text>
+    <text x="529" y="1240" class="small muted">Avoids extra client round trips.</text>
+
+    <line class="line" x1="316" y1="1284" x2="316" y2="1344" marker-end="url(#arrow)"/>
+    <line class="line" x1="639" y1="1284" x2="639" y2="1344" marker-end="url(#arrow)"/>
+    <text x="356" y="1321" class="tiny muted">backend execution</text>
+
+    <rect class="card" x="110" y="1364" width="240" height="132" rx="12" stroke="#7c3aed"/>
+    <text x="146" y="1402" class="label" fill="#5b21b6">TensorRT</text>
+    <text x="146" y="1434" class="small ink">Compiled GPU engine.</text>
+    <text x="146" y="1460" class="small muted">FP16 / INT8 / FP8 paths.</text>
+
+    <rect class="card" x="384" y="1364" width="240" height="132" rx="12" stroke="#7c3aed"/>
+    <text x="420" y="1402" class="label" fill="#5b21b6">ONNX / PyTorch</text>
+    <text x="420" y="1434" class="small ink">Portable backend paths.</text>
+    <text x="420" y="1460" class="small muted">Flexible model support.</text>
+
+    <rect class="card" x="658" y="1364" width="270" height="132" rx="12" stroke="#7c3aed"/>
+    <text x="694" y="1402" class="label" fill="#5b21b6">LLM Runtime Integration</text>
+    <text x="694" y="1434" class="small ink">vLLM Backend, TensorRT-LLM,</text>
+    <text x="694" y="1460" class="small ink">custom backend.</text>
+    <text x="694" y="1486" class="small muted">KV cache and inflight batching live here.</text>
+
+    <line class="line" x1="230" y1="1496" x2="230" y2="1566" marker-end="url(#arrow)"/>
+    <line class="line" x1="504" y1="1496" x2="504" y2="1566" marker-end="url(#arrow)"/>
+    <line class="line" x1="793" y1="1496" x2="793" y2="1566" marker-end="url(#arrow)"/>
+
+    <rect x="170" y="1586" width="615" height="132" rx="12" fill="#111827" stroke="#334155" stroke-width="2"/>
+    <text x="206" y="1630" class="label" fill="#f8fafc">GPU Node Pool (H100 / A100)</text>
+    <text x="206" y="1662" class="small" fill="#e5e7eb">NVLink fabric, HBM2e/HBM3 memory, GPUDirect RDMA,</text>
+    <text x="206" y="1687" class="small" fill="#e5e7eb">NVMe / GDS data path.</text>
+    <rect x="206" y="1700" width="64" height="28" rx="5" fill="#374151" stroke="#cbd5e1"/>
+    <text x="221" y="1720" class="chip">HBM</text>
+    <rect x="282" y="1700" width="78" height="28" rx="5" fill="#374151" stroke="#cbd5e1"/>
+    <text x="299" y="1720" class="chip">NVLink</text>
+    <rect x="372" y="1700" width="70" height="28" rx="5" fill="#374151" stroke="#cbd5e1"/>
+    <text x="390" y="1720" class="chip">RDMA</text>
+    <rect x="454" y="1700" width="56" height="28" rx="5" fill="#374151" stroke="#cbd5e1"/>
+    <text x="468" y="1720" class="chip">GDS</text>
+    <rect x="522" y="1700" width="70" height="28" rx="5" fill="#374151" stroke="#cbd5e1"/>
+    <text x="540" y="1720" class="chip">NVMe</text>
+  </g>
+
+  <!-- Control plane cards -->
+  <g id="control-plane">
+    <rect class="card" x="930" y="350" width="346" height="125" rx="12" stroke="#475569"/>
+    <text x="960" y="390" class="label" fill="#334155">Ray Head Node / GCS</text>
+    <text x="960" y="422" class="small ink">Cluster metadata, scheduling state, resource availability.</text>
+    <text x="960" y="448" class="small muted">Control plane only.</text>
+
+    <rect class="card" x="930" y="520" width="346" height="125" rx="12" stroke="#475569"/>
+    <text x="960" y="560" class="label" fill="#334155">Serve Controller</text>
+    <text x="960" y="592" class="small ink">Deployment config, routing policy, replica lifecycle.</text>
+    <text x="960" y="618" class="small muted">Restarts failed Serve actors.</text>
+
+    <rect class="card" x="930" y="690" width="346" height="125" rx="12" stroke="#475569"/>
+    <text x="960" y="730" class="label" fill="#334155">Autoscaler / KubeRay</text>
+    <text x="960" y="762" class="small ink">Adds replicas and requests more nodes</text>
+    <text x="960" y="788" class="small ink">when resources are insufficient.</text>
+    <text x="960" y="812" class="small muted">GPU capacity is a cluster concern.</text>
+
+    <rect class="card" x="930" y="860" width="346" height="125" rx="12" stroke="#475569"/>
+    <text x="960" y="900" class="label" fill="#334155">Model Repository</text>
+    <text x="960" y="932" class="small ink">Triton model versions, config.pbtxt, backend artifacts.</text>
+    <text x="960" y="958" class="small muted">Rollout and rollback source.</text>
+
+    <rect class="card" x="930" y="1030" width="346" height="125" rx="12" stroke="#475569"/>
+    <text x="960" y="1070" class="label" fill="#334155">Observability</text>
+    <text x="960" y="1102" class="small ink">Prometheus, Grafana, logs, traces, health checks.</text>
+    <text x="960" y="1128" class="small muted">Debug latency across every hop.</text>
+  </g>
+
+  <!-- Control plane influence lines -->
+  <line class="dash" x1="930" y1="582" x2="785" y2="794" marker-end="url(#arrowDash)"/>
+  <text x="800" y="672" class="tiny muted">routing config</text>
+  <line class="dash" x1="930" y1="752" x2="785" y2="997" marker-end="url(#arrowDash)"/>
+  <text x="800" y="882" class="tiny muted">scale replicas</text>
+  <line class="dash" x1="930" y1="922" x2="785" y2="1213" marker-end="url(#arrowDash)"/>
+  <text x="800" y="1065" class="tiny muted">model config</text>
+  <g transform="translate(72 1758)">
+    <rect x="0" y="0" width="1256" height="44" rx="9" fill="#f1f5f9" stroke="#cbd5e1"/>
+    <text x="24" y="29" class="small ink">Key rule: Ray Head Node and Serve Controller configure, place, and supervise. They do not forward normal inference payloads to Triton.</text>
+  </g>
+</svg>

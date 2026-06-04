@@ -12,3 +12,4 @@ HF_HOME=/data/LLM/models/hugging-face
 
 - Do not introduce new defaults that point Hugging Face model/cache data at `~/.cache/huggingface` unless the user explicitly asks for a local home-directory cache.
 - Generated benchmark results should stay under `results/`, and temporary benchmark/runtime artifacts should be cleaned up after SGLang and TGI runs if they are not part of the intended recorded results.
+- In Markdown files, do not add standalone `---` horizontal rules around `##` level headings; GitHub already visually separates H2 sections.

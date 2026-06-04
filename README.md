@@ -2,6 +2,10 @@
 
 A Docker Compose lab for benchmarking and observing open-source LLM serving engines on real GPU hardware.
 
+<p align="center">
+  <img src="docs/assets/images/llm-serving-lab.svg" alt="Animated tensor flow across GPUs">
+</p>
+
 ## Comparison Targets
 
 | Category | Framework |
@@ -82,6 +86,10 @@ llm-serving-lab/
 | 6 | Production Report | `docs/README.md` |
 
 > This scaffolding is **Docker Compose-focused**. Phase 5 (K8s/Helm/ArgoCD) is intentionally recommended as a separate repository.
+
+- [LLM Serving Landscape](docs/README.md)
+- [Ray Serve to Triton Inference Server Architecture](docs/architecture/ray-triton-inference-serving.md)
+
 
 Ray Serve is optional. Use it when the goal is to evaluate the production layer above an engine; skip it when the goal is only engine-level benchmarking.
 

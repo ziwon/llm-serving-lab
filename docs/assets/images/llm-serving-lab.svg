@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Animated serving benchmark hero</title>
+  <desc id="desc">An abstract animated SVG showing prompts flowing through LLM serving engines into GPU inference and observability metrics.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06101f"/>
+      <stop offset="48%" stop-color="#080d1d"/>
+      <stop offset="100%" stop-color="#020712"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#26e8ff" stop-opacity="0.32"/>
+      <stop offset="55%" stop-color="#6c5cff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cyanLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38f6ff" stop-opacity="0"/>
+      <stop offset="18%" stop-color="#38f6ff" stop-opacity="0.9"/>
+      <stop offset="62%" stop-color="#7c7bff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#39ffd5" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="violetLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8a5cff" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#8a5cff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#38f6ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="engineFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d2240" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#121337" stop-opacity="0.72"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.11  0 0 0 0 0.86  0 0 0 0 1  0 0 0 0.82 0" result="neon"/>
+      <feMerge>
+        <feMergeNode in="neon"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse">
+      <path d="M34 0H0V34" fill="none" stroke="#63d7ff" stroke-opacity="0.055" stroke-width="1"/>
+    </pattern>
+    <style>
+      :root { color-scheme: dark; }
+      .bgGrid { animation: drift 18s linear infinite; }
+      .flow { fill:none; stroke-linecap:round; stroke-width:2.2; opacity:.9; filter:url(#glow); stroke-dasharray: 9 22; animation: dash 2.7s linear infinite; }
+      .flow.slow { animation-duration:4.8s; opacity:.55; stroke-width:1.4; }
+      .flow.fast { animation-duration:1.7s; stroke-width:2.8; }
+      .engine { fill:url(#engineFill); stroke:#39eaff; stroke-opacity:.72; stroke-width:1.5; filter:url(#glow); }
+      .engine.alt { stroke:#8a7bff; }
+      .engineText { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill:#e3fbff; font-size:15px; letter-spacing:.3px; }
+      .subText { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill:#7fb9d1; font-size:10px; }
+      .tiny { fill:#89efff; opacity:.72; animation: blink 2.6s ease-in-out infinite; }
+      .tiny.v { fill:#9b7bff; animation-delay:.5s; }
+      .tiny.g { fill:#45ffd4; animation-delay:1s; }
+      .packet { filter:url(#glow); animation: packet 4.5s linear infinite; }
+      .packet.p2 { animation-delay:-1.4s; }
+      .packet.p3 { animation-delay:-2.8s; }
+      .pulse { transform-origin:center; animation: pulse 3.2s ease-in-out infinite; }
+      .metricBar { transform-origin: 0 100%; animation: bars 3.8s ease-in-out infinite; }
+      .metricBar.b2 { animation-delay:.35s; } .metricBar.b3 { animation-delay:.7s; } .metricBar.b4 { animation-delay:1.05s; }
+      .ring { fill:none; stroke:#39eaff; stroke-opacity:.25; stroke-width:1; stroke-dasharray:4 10; animation: spin 26s linear infinite; transform-origin:875px 210px; }
+      .token { fill:#35f6ff; filter:url(#glow); animation: token 2.8s ease-in-out infinite; }
+      .token:nth-of-type(2n) { animation-delay:.45s; fill:#8a7bff; }
+      .token:nth-of-type(3n) { animation-delay:.9s; fill:#45ffd4; }
+      @keyframes dash { to { stroke-dashoffset:-62; } }
+      @keyframes drift { from { transform:translateX(0); } to { transform:translateX(-34px); } }
+      @keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
+      @keyframes pulse { 0%,100%{opacity:.45; transform:scale(.96)} 50%{opacity:1; transform:scale(1.04)} }
+      @keyframes packet { 0%{opacity:0; transform:translateX(-35px)} 12%{opacity:1} 82%{opacity:1} 100%{opacity:0; transform:translateX(490px)} }
+      @keyframes bars { 0%,100%{transform:scaleY(.35)} 50%{transform:scaleY(1)} }
+      @keyframes spin { to { transform:rotate(360deg); } }
+      @keyframes token { 0%,100%{opacity:.35; transform:translateY(0)} 50%{opacity:1; transform:translateY(-6px)} }
+      @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+    </style>
+  </defs>
+
+  <rect width="1200" height="420" fill="url(#bg)"/>
+  <rect class="bgGrid" width="1268" height="420" fill="url(#grid)" opacity=".9"/>
+  <circle cx="872" cy="210" r="235" fill="url(#halo)" opacity=".85"/>
+  <circle cx="250" cy="210" r="190" fill="url(#halo)" opacity=".32"/>
+
+  <!-- subtle orbital guides -->
+  <path class="ring" d="M638 210a237 138 0 1 0 474 0a237 138 0 1 0 -474 0"/>
+  <path class="ring" style="animation-direction:reverse; animation-duration:34s" d="M582 210a294 182 0 1 0 588 0a294 182 0 1 0 -588 0"/>
+
+  <!-- request side -->
+  <g transform="translate(72 136)">
+    <rect x="0" y="0" width="150" height="148" rx="22" fill="#07182d" stroke="#2feaff" stroke-opacity=".45"/>
+    <text x="24" y="35" class="engineText">Requests</text>
+    <text x="24" y="58" class="subText">OpenAI API</text>
+    <text x="24" y="76" class="subText">streaming</text>
+    <text x="24" y="94" class="subText">JSON mode</text>
+    <text x="24" y="112" class="subText">tool calls</text>
+    <g transform="translate(24 124)">
+      <rect class="tiny" x="0" y="0" width="8" height="8" rx="2"/>
+      <rect class="tiny v" x="18" y="0" width="8" height="8" rx="2"/>
+      <rect class="tiny g" x="36" y="0" width="8" height="8" rx="2"/>
+      <rect class="tiny" x="54" y="0" width="8" height="8" rx="2"/>
+      <rect class="tiny v" x="72" y="0" width="8" height="8" rx="2"/>
+      <rect class="tiny g" x="90" y="0" width="8" height="8" rx="2"/>
+    </g>
+  </g>
+
+  <!-- flowing request paths -->
+  <path class="flow fast" stroke="url(#cyanLine)" d="M225 176 C310 148, 334 114, 405 116"/>
+  <path class="flow" stroke="url(#violetLine)" d="M225 198 C314 190, 334 172, 405 172"/>
+  <path class="flow" stroke="url(#cyanLine)" d="M225 224 C315 228, 333 246, 405 246"/>
+  <path class="flow slow" stroke="url(#violetLine)" d="M225 254 C312 284, 334 310, 405 302"/>
+
+  <!-- moving packets -->
+  <g class="packet"><rect x="244" y="169" width="18" height="8" rx="3" fill="#38f6ff"/><circle cx="272" cy="173" r="3" fill="#8a7bff"/></g>
+  <g class="packet p2"><rect x="244" y="218" width="16" height="8" rx="3" fill="#45ffd4"/><circle cx="270" cy="222" r="3" fill="#38f6ff"/></g>
+  <g class="packet p3"><rect x="244" y="246" width="20" height="8" rx="3" fill="#8a7bff"/><circle cx="274" cy="250" r="3" fill="#45ffd4"/></g>
+
+  <!-- engine layer -->
+  <g>
+    <rect class="engine" x="405" y="88" width="150" height="58" rx="16"/>
+    <text x="428" y="122" class="engineText">vLLM</text>
+    <text x="488" y="122" class="subText">paged KV</text>
+
+    <rect class="engine alt" x="405" y="152" width="150" height="58" rx="16"/>
+    <text x="428" y="186" class="engineText">SGLang</text>
+    <text x="506" y="186" class="subText">runtime</text>
+
+    <rect class="engine" x="405" y="226" width="150" height="58" rx="16"/>
+    <text x="428" y="260" class="engineText">TGI</text>
+    <text x="478" y="260" class="subText">hf stack</text>
+
+    <rect class="engine alt" x="405" y="290" width="150" height="58" rx="16"/>
+    <text x="428" y="324" class="engineText">TRT-LLM</text>
+    <text x="508" y="324" class="subText">engine</text>
+  </g>
+
+  <!-- router/fan-in -->
+  <path class="flow" stroke="url(#cyanLine)" d="M555 117 C625 118, 648 168, 695 190"/>
+  <path class="flow slow" stroke="url(#violetLine)" d="M555 181 C620 181, 650 190, 695 202"/>
+  <path class="flow" stroke="url(#cyanLine)" d="M555 255 C620 254, 650 230, 695 218"/>
+  <path class="flow slow" stroke="url(#violetLine)" d="M555 319 C624 314, 648 246, 695 230"/>
+
+  <!-- GPU chip -->
+  <g transform="translate(690 126)" filter="url(#glow)">
+    <rect x="0" y="0" width="210" height="176" rx="30" fill="#07182d" stroke="#38f6ff" stroke-width="2"/>
+    <rect x="38" y="32" width="134" height="112" rx="18" fill="#0b2141" stroke="#8a7bff" stroke-opacity=".75"/>
+    <text x="62" y="80" class="engineText" style="font-size:18px">GPU</text>
+    <text x="62" y="104" class="subText">decode loop</text>
+    <text x="62" y="122" class="subText">KV cache · batches</text>
+    <g transform="translate(50 42)">
+      <rect class="token" x="0" y="92" width="10" height="10" rx="2"/>
+      <rect class="token" x="18" y="92" width="10" height="10" rx="2"/>
+      <rect class="token" x="36" y="92" width="10" height="10" rx="2"/>
+      <rect class="token" x="54" y="92" width="10" height="10" rx="2"/>
+      <rect class="token" x="72" y="92" width="10" height="10" rx="2"/>
+      <rect class="token" x="90" y="92" width="10" height="10" rx="2"/>
+    </g>
+    <!-- pins -->
+    <g opacity=".82">
+      <path d="M-14 34H0M-14 62H0M-14 90H0M-14 118H0M-14 146H0" stroke="#38f6ff"/>
+      <path d="M210 34h14M210 62h14M210 90h14M210 118h14M210 146h14" stroke="#45ffd4"/>
+      <path d="M34 -14V0M70 -14V0M106 -14V0M142 -14V0M176 -14V0" stroke="#8a7bff"/>
+      <path d="M34 176v14M70 176v14M106 176v14M142 176v14M176 176v14" stroke="#38f6ff"/>
+    </g>
+  </g>
+
+  <!-- output and metrics paths -->
+  <path class="flow fast" stroke="url(#cyanLine)" d="M904 176 C960 160, 1000 116, 1128 112"/>
+  <path class="flow" stroke="url(#violetLine)" d="M904 210 C958 210, 1012 205, 1128 205"/>
+  <path class="flow slow" stroke="url(#cyanLine)" d="M904 244 C960 262, 1008 302, 1128 308"/>
+
+  <!-- observability panel -->
+  <g transform="translate(958 76)">
+    <rect x="0" y="0" width="176" height="268" rx="22" fill="#07182d" stroke="#6c5cff" stroke-opacity=".5"/>
+    <text x="24" y="38" class="engineText">Metrics</text>
+    <text x="24" y="62" class="subText">TTFT · tok/s · W</text>
+    <g transform="translate(28 90)">
+      <rect class="metricBar" x="0" y="58" width="16" height="58" rx="4" fill="#38f6ff"/>
+      <rect class="metricBar b2" x="28" y="36" width="16" height="80" rx="4" fill="#8a7bff"/>
+      <rect class="metricBar b3" x="56" y="18" width="16" height="98" rx="4" fill="#45ffd4"/>
+      <rect class="metricBar b4" x="84" y="44" width="16" height="72" rx="4" fill="#38f6ff"/>
+      <path d="M0 118H116" stroke="#7fb9d1" stroke-opacity=".35"/>
+    </g>
+    <g transform="translate(28 238)">
+      <circle class="tiny" cx="0" cy="0" r="4"/><text x="12" y="4" class="subText">Prometheus</text>
+      <circle class="tiny v" cx="0" cy="20" r="4"/><text x="12" y="24" class="subText">DCGM / OpenLIT</text>
+    </g>
+  </g>
+
+  <!-- decorative token stream bottom -->
+  <path d="M65 365 C168 332, 247 393, 355 361 S522 342, 619 369 S784 390, 876 354" fill="none" stroke="#39eaff" stroke-opacity=".22" stroke-width="1.4"/>
+  <path class="flow slow" stroke="url(#violetLine)" d="M65 365 C168 332, 247 393, 355 361 S522 342, 619 369 S784 390, 876 354"/>
+
+  <!-- light particles -->
+  <g opacity=".9">
+    <circle class="tiny" cx="321" cy="78" r="2.2"/><circle class="tiny v" cx="596" cy="86" r="2"/><circle class="tiny g" cx="918" cy="68" r="2.4"/>
+    <circle class="tiny" cx="1053" cy="371" r="2.2"/><circle class="tiny v" cx="155" cy="333" r="2"/><circle class="tiny g" cx="672" cy="358" r="2.4"/>
+    <circle class="tiny" cx="1112" cy="45" r="1.8"/><circle class="tiny v" cx="50" cy="118" r="1.8"/><circle class="tiny g" cx="612" cy="42" r="2"/>
+  </g>
+</svg>
